@@ -7,7 +7,7 @@ network egress beyond the requests themselves.
 
 [![build](https://github.com/afshinShh/burp-ai-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/afshinShh/burp-ai-bridge/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/afshinShh/burp-ai-bridge)](https://github.com/afshinShh/burp-ai-bridge/releases)
-[![license](https://img.shields.io/github/license/afshinShh/burp-ai-bridge)](LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-67ac09)](LICENSE)
 
 ## How it works
 
