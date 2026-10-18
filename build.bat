@@ -29,12 +29,11 @@ javac -cp $BurpJar -d build src\aibridge\AiAgentBridge.java
 jar cf AiAgentBridge.jar -C build aibridge
 
 New-Item -ItemType Directory -Force -Path build-test | Out-Null
-javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\StateTest.java
-java -cp "$BurpJar;build;build-test" aibridge.StateTest
-javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\RendererResetTest.java
-java -cp "$BurpJar;build;build-test" aibridge.RendererResetTest
-javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\UrlForTest.java
-java -cp "$BurpJar;build;build-test" aibridge.UrlForTest
+javac -cp "$BurpJar;build;build-test" -d build-test (Get-ChildItem test\aibridge\*.java).FullName
+Get-ChildItem test\aibridge\*Test.java | ForEach-Object {
+    java -Djava.awt.headless=true -cp "$BurpJar;build;build-test" "aibridge.$($_.BaseName)"
+    if ($LASTEXITCODE -ne 0) { throw "test suite failed: $($_.BaseName)" }
+}
 
 Write-Host "[+] wrote $(Join-Path $PSScriptRoot 'AiAgentBridge.jar')"
 Write-Host "    load it via: Burp -> Extender -> Extensions -> Add -> Java"

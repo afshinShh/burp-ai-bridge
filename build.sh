@@ -30,9 +30,11 @@ jar cf AiAgentBridge.jar -C build aibridge
 
 mkdir -p build-test
 javac -cp "$API_JAR:build:build-test" -d build-test test/aibridge/*.java
-java -cp "$API_JAR:build:build-test" aibridge.StateTest
-java -cp "$API_JAR:build:build-test" aibridge.RendererResetTest
-java -cp "$API_JAR:build:build-test" aibridge.UrlForTest
+fail=0
+for t in test/aibridge/*Test.java; do
+    java -Djava.awt.headless=true -cp "$API_JAR:build:build-test" "aibridge.$(basename "$t" .java)" || fail=1
+done
+[ "$fail" -eq 0 ] || { echo "[!] test failure"; exit 1; }
 
 echo "[+] wrote $(pwd)/AiAgentBridge.jar"
 echo "    load it via: Burp -> Extender -> Extensions -> Add -> Java"

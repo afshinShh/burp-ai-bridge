@@ -57,7 +57,7 @@ public final class AiAgentBridge implements BurpExtension {
     static final DateTimeFormatter DISPLAY_TS = DateTimeFormatter.ofPattern("HH:mm:ss");
     static final AtomicLong SEQ = new AtomicLong(1000);
 
-    private MontoyaApi api;
+    MontoyaApi api; // package-visible: headless tests inject fakes
     Path inboxDir; // package-visible: headless tests wire a temp directory in
     private volatile UiPanel ui;
     private Timer timer;
@@ -128,6 +128,16 @@ public final class AiAgentBridge implements BurpExtension {
     volatile long resultsAnchorPos = 0;
     /** the up-to-16 bytes just before that anchor; changed bytes mean the file was replaced */
     volatile byte[] resultsAnchorBytes = new byte[0];
+
+    // ----------------------------------------------------------------- options
+
+    static final String OPT_INCLUDE_RESP = "opt-includeResp";
+    static final String OPT_HIDE_SENT = "opt-hideSent";
+    static final String OPT_IN_SCOPE_ONLY = "opt-inScopeOnly";
+
+    volatile boolean optIncludeResp = true;
+    volatile boolean optHideSent = false;
+    volatile boolean optInScopeOnly = false;
 
     /**
      * Agents append JSON lines {ts, batch, summary, by} to results.jsonl; this
@@ -232,7 +242,7 @@ public final class AiAgentBridge implements BurpExtension {
     }
 
     /** values are plain, agent-controlled strings; extractor tolerates escapes minimally */
-    private static String extractField(String line, String key) {
+    static String extractField(String line, String key) {
         try {
             int at = line.indexOf("\"" + key + "\"");
             if (at < 0) return null;
@@ -257,8 +267,10 @@ public final class AiAgentBridge implements BurpExtension {
         String home = System.getProperty("user.home");
         inboxDir = Paths.get(setting("inboxDir", home + File.separator + ".ai-inbox" + File.separator + "burp"));
         ensureDirs();
+        hardenInbox();
         writeProtocolDoc();
         detectPalette();
+        loadOptions();
         loadSentState();
         logEvent("bridge_loaded", "AI Agent Bridge initialized. Inbox: " + inboxDir);
 
@@ -311,6 +323,7 @@ public final class AiAgentBridge implements BurpExtension {
             Files.createDirectories(np);
             Files.createDirectories(np.resolve("archive"));
             inboxDir = np;
+            hardenInbox();
             try {
                 api.persistence().extensionData().setString("inboxDir", np.toString());
             } catch (Throwable ignored) { }
@@ -506,6 +519,47 @@ public final class AiAgentBridge implements BurpExtension {
         return base != null && !base.isEmpty() && archived.containsKey(base);
     }
 
+    // ------------------------------------------------------------------ options
+
+    /** persist the three checkbox states so a restart keeps the workflow */
+    void saveOptions() {
+        if (api == null) return;
+        try {
+            burp.api.montoya.persistence.PersistedObject po = api.persistence().extensionData();
+            po.setBoolean(OPT_INCLUDE_RESP, optIncludeResp);
+            po.setBoolean(OPT_HIDE_SENT, optHideSent);
+            po.setBoolean(OPT_IN_SCOPE_ONLY, optInScopeOnly);
+        } catch (Throwable t) {
+            api.logging().logToError("saveOptions failed: " + t);
+        }
+    }
+
+    void loadOptions() {
+        if (api == null) return;
+        try {
+            burp.api.montoya.persistence.PersistedObject po = api.persistence().extensionData();
+            Boolean a = po.getBoolean(OPT_INCLUDE_RESP);
+            if (a != null) optIncludeResp = a;
+            Boolean b = po.getBoolean(OPT_HIDE_SENT);
+            if (b != null) optHideSent = b;
+            Boolean c = po.getBoolean(OPT_IN_SCOPE_ONLY);
+            if (c != null) optInScopeOnly = c;
+        } catch (Throwable t) {
+            api.logging().logToError("loadOptions failed: " + t);
+        }
+    }
+
+    /** restrict the inbox to its owner where the filesystem supports POSIX modes */
+    void hardenInbox() {
+        try {
+            if (!inboxDir.getFileSystem().supportedFileAttributeViews().contains("posix")) return;
+            Files.setPosixFilePermissions(inboxDir,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        } catch (Throwable t) {
+            if (api != null) api.logging().logToError("hardenInbox failed: " + t);
+        }
+    }
+
     /**
      * Agent-loop text for the Agent column: what happened after the hand-off.
      * "sent" while pending, "✓" once consumed, and rich when the agent replied:
@@ -676,7 +730,7 @@ public final class AiAgentBridge implements BurpExtension {
     }
 
     private boolean includeResponse() {
-        return ui == null || ui.includeResp.isSelected();
+        return optIncludeResp;
     }
 
     // ------------------------------------------------------------- item logic
@@ -784,6 +838,73 @@ public final class AiAgentBridge implements BurpExtension {
         try { return it.req.toByteArray().length(); } catch (Throwable t) { return 0; }
     }
 
+    // ------------------------------------------------------------------------- rotation
+
+    static final long ROTATE_BYTES = 2L * 1024 * 1024;
+    static final long ROTATE_LINES = 5000;
+    static final int ROTATE_TAIL_LINES = 200;
+
+    /** true when manifest.jsonl has outgrown the thresholds and should be rotated */
+    static boolean shouldRotate(long sizeBytes, long lineCount) {
+        return sizeBytes >= ROTATE_BYTES || lineCount >= ROTATE_LINES;
+    }
+
+    /**
+     * Move the full manifest into archive/manifest-<stamp>.jsonl atomically, then
+     * seed a fresh live manifest with the last ROTATE_TAIL_LINES history lines and
+     * a rotated event naming the archive. A raced append either lands in the
+     * archive (written before rename) or is re-appended by its writer; the tail
+     * and marker guarantee agents always see a coherent live file.
+     */
+    void rotateManifest() {
+        try {
+            Path live = inboxDir.resolve("manifest.jsonl");
+            if (Files.notExists(live)) return;
+            List<String> history = Files.readAllLines(live, StandardCharsets.UTF_8);
+            if (history.isEmpty()) {
+                // blank/socket file: leave as-is
+                Files.write(live, new byte[0]);
+                return;
+            }
+            String stamp = LocalDateTime.now().format(
+                    DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS-'rot'"));
+            Path archived = inboxDir.resolve("archive").resolve("manifest-" + stamp + ".jsonl");
+            Files.createDirectories(inboxDir.resolve("archive"));
+            Files.write(archived, (String.join("\n", history) + "\n").getBytes(StandardCharsets.UTF_8));
+
+            int from = Math.max(0, history.size() - ROTATE_TAIL_LINES);
+            List<String> tail = new ArrayList<String>(history.subList(from, history.size()));
+            Map<String, Object> ev = new LinkedHashMap<String, Object>();
+            ev.put("ts", Instant.now().toString());
+            ev.put("event", "rotated");
+            ev.put("message", archiveRelPath(archived));
+            tail.add(toJson(ev));
+            tail.add("");
+            Path tmp = inboxDir.resolve("manifest.jsonl.next");
+            Files.write(tmp, String.join("\n", tail).getBytes(StandardCharsets.UTF_8));
+            try {
+                Files.move(tmp, live,
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Throwable notAtomic) {
+                Files.move(tmp, live, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Throwable t) {
+            if (api != null) api.logging().logToError("rotate failed: " + t);
+            else t.printStackTrace();
+        }
+    }
+
+    /** stable relative address agents can resolve from the inbox root */
+    static String archiveRelPath(Path archived) {
+        String name = archived.getFileName().toString();
+        return "archive/" + name;
+    }
+
+    /** message field of a manifest event line; null when absent */
+    static String extractEventMessage(String eventLine) {
+        return extractField(eventLine, "message");
+    }
+
     private static String sanitize(String s) {
         String clean = s.replaceAll("[^A-Za-z0-9.-]", "_");
         if (clean.length() > 60) clean = clean.substring(0, 60);
@@ -798,12 +919,36 @@ public final class AiAgentBridge implements BurpExtension {
             List<String> body = new ArrayList<String>();
             for (String l : lines) body.add(l);
             body.add(""); // trailing newline
-            Files.write(inboxDir.resolve("manifest.jsonl"),
+            Path live = inboxDir.resolve("manifest.jsonl");
+            long size = 0;
+            long count = 0;
+            try {
+                size = (long) Files.size(live);
+                count = countLines(live);
+            } catch (Throwable ignored) { }
+            Files.write(live,
                     String.join("\n", body).getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            if (shouldRotate(size + joinedSize(body), count + body.size())) {
+                rotateManifest();
+            }
         } catch (IOException e) {
             api.logging().logToError("manifest append failed: " + e);
         }
+    }
+
+    private static long joinedSize(List<String> body) {
+        long n = 0;
+        for (String s : body) n += s.length() + 1;
+        return n;
+    }
+
+    static long countLines(Path f) throws Exception {
+        long n = 0;
+        try (var reader = Files.newBufferedReader(f, StandardCharsets.UTF_8)) {
+            while (reader.readLine() != null) n++;
+        }
+        return n;
     }
 
     void logEvent(String type, String message) {
@@ -968,7 +1113,7 @@ public final class AiAgentBridge implements BurpExtension {
         final JTextField filter = new JTextField(20);
         final JTextField maxRows = new JTextField("3000", 6);
         final JTextField note = new JTextField(18);
-        final JCheckBox includeResp = new JCheckBox("Include response", true);
+        final JCheckBox includeResp = new JCheckBox("Include response");
         final JCheckBox hideSent = new JCheckBox("Hide sent");
         final JCheckBox inScopeOnly = new JCheckBox("In scope only");
         final JButton forgetSentBtn = new JButton("Forget sent");
@@ -982,6 +1127,10 @@ public final class AiAgentBridge implements BurpExtension {
             model = new HistoryModel(bridge);
             table = new BridgeTable(model, bridge);
             pathField = new JTextField(bridge.inbox().toString());
+            // flags were loaded from persistence before this panel exists
+            includeResp.setSelected(bridge.optIncludeResp);
+            hideSent.setSelected(bridge.optHideSent);
+            inScopeOnly.setSelected(bridge.optInScopeOnly);
 
             JToolBar bar = new JToolBar();
             bar.setFloatable(false);
@@ -1052,8 +1201,20 @@ public final class AiAgentBridge implements BurpExtension {
             table.getColumnModel().getColumn(8).setPreferredWidth(150);
 
             filter.addActionListener(e -> refresh());
-            hideSent.addActionListener(e -> refresh());
-            inScopeOnly.addActionListener(e -> refresh());
+            hideSent.addActionListener(e -> {
+                bridge.optHideSent = hideSent.isSelected();
+                bridge.saveOptions();
+                refresh();
+            });
+            inScopeOnly.addActionListener(e -> {
+                bridge.optInScopeOnly = inScopeOnly.isSelected();
+                bridge.saveOptions();
+                refresh();
+            });
+            includeResp.addActionListener(e -> {
+                bridge.optIncludeResp = includeResp.isSelected();
+                bridge.saveOptions();
+            });
             inScopeOnly.setToolTipText("Show only requests inside Burp's Target Scope (Target -> Scope)");
         }
 
