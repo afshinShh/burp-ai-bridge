@@ -1,134 +1,152 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="404" viewBox="0 0 940 404" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
   <!-- window -->
-  <rect x="0" y="0" width="900" height="470" rx="12" fill="#0d1117" stroke="#30363d"/>
-  <rect x="0" y="0" width="900" height="36" rx="12" fill="#161b22"/>
+  <rect x="0" y="0" width="940" height="404" rx="12" fill="#0d1117" stroke="#30363d"/>
+  <rect x="0" y="0" width="940" height="36" rx="12" fill="#161b22"/>
   <circle cx="22" cy="18" r="5" fill="#f85149"/>
   <circle cx="40" cy="18" r="5" fill="#e3b341"/>
   <circle cx="58" cy="18" r="5" fill="#3fb950"/>
-  <text x="450" y="23" text-anchor="middle" fill="#8b949e" font-size="12">Burp Suite Professional — AI Bridge</text>
+  <text x="470" y="23" text-anchor="middle" fill="#8b949e" font-size="12">Burp Suite Professional — AI Bridge</text>
 
-  <!-- toolbar -->
-  <g font-size="11">
-    <rect x="16" y="48" width="112" height="26" rx="6" fill="#21262d" stroke="#30363d"/>
-    <text x="72" y="65" text-anchor="middle" fill="#e6edf3">⟳ Refresh history</text>
-
-    <rect x="136" y="48" width="110" height="26" rx="6" fill="#b95318"/>
-    <text x="191" y="65" text-anchor="middle" fill="#ffffff" font-weight="600">⇪ Send selected</text>
-
-    <text x="258" y="65" fill="#8b949e">Filter:</text>
-    <rect x="296" y="48" width="150" height="26" rx="6" fill="#010409" stroke="#30363d"/>
-    <text x="306" y="65" fill="#e6edf3" font-family="'SFMono-Regular',Menlo,Consolas,monospace">order/api</text>
-    <circle cx="436" cy="61" r="6" fill="#30363d"/>
-    <text x="436" y="64.5" text-anchor="middle" fill="#8b949e" font-size="9">✕</text>
-
-    <text x="458" y="65" fill="#8b949e">Max rows:</text>
-    <rect x="518" y="48" width="44" height="26" rx="6" fill="#010409" stroke="#30363d"/>
-    <text x="540" y="65" text-anchor="middle" fill="#e6edf3" font-family="'SFMono-Regular',Menlo,Consolas,monospace">3000</text>
-
-    <rect x="574" y="52" width="13" height="14" rx="3" fill="#238636"/>
-    <path d="M577 58 l4 5 l6 -9" stroke="#fff" stroke-width="1.8" fill="none"/>
-    <text x="592" y="65" fill="#e6edf3">Include response</text>
-
-    <text x="700 " y="65" fill="#8b949e">Note:</text>
-    <rect x="726" y="48" width="158" height="26" rx="6" fill="#010409" stroke="#30363d"/>
-    <text x="736" y="65" fill="#ffa657" font-family="'SFMono-Regular',Menlo,Consolas,monospace">try cross-account GET</text>
+  <!-- toolbar row 1 -->
+  <rect x="8" y="44" width="924" height="32" rx="6" fill="#161b22" stroke="#21262d"/>
+  <g font-size="11" fill="#c9d1d9">
+    <rect x="16" y="49" width="98" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+    <text x="65" y="63.5" text-anchor="middle">Refresh history</text>
+    <rect x="120" y="49" width="88" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+    <text x="164" y="63.5" text-anchor="middle">Send selected</text>
+    <text x="222" y="63.5" fill="#8b949e">Filter:</text>
+    <rect x="258" y="49" width="130" height="22" rx="4" fill="#0d1117" stroke="#30363d"/>
+    <text x="266" y="63.5" fill="#e6edf3">admin</text>
+    <text x="402" y="63.5" fill="#8b949e">Max rows:</text>
+    <rect x="458" y="49" width="48" height="22" rx="4" fill="#0d1117" stroke="#30363d"/>
+    <text x="466" y="63.5" fill="#e6edf3">3000</text>
+    <rect x="516" y="51" width="12" height="12" rx="2" fill="#0d1117" stroke="#8b949e"/>
+    <text x="533" y="63.5">Include response</text>
+    <rect x="522" y="53.5" width="7" height="7" fill="none" stroke="#3fb950" stroke-width="1.6"/>
+    <rect x="632" y="51" width="12" height="12" rx="2" fill="#0d1117" stroke="#8b949e"/>
+    <text x="649" y="63.5">Hide sent</text>
   </g>
 
-  <!-- table -->
-  <rect x="16" y="88" width="868" height="26" rx="4" fill="#21262d"/>
-  <g fill="#8b949e" font-size="11" font-weight="600">
-    <text x="30"  y="105">ID</text>
-    <text x="102" y="105">Time</text>
-    <text x="182" y="105">Method</text>
-    <text x="262" y="105">Host</text>
-    <text x="430" y="105">Path</text>
-    <text x="726" y="105">Status</text>
-    <text x="806" y="105">Len</text>
+  <!-- toolbar row 2 -->
+  <rect x="8" y="80" width="924" height="32" rx="6" fill="#161b22" stroke="#21262d"/>
+  <g font-size="11" fill="#c9d1d9">
+    <rect x="16" y="85" width="12" height="12" rx="2" fill="#0d1117" stroke="#8b949e"/>
+    <text x="33" y="97.5">In scope only</text>
+    <rect x="112" y="85" width="74" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+    <text x="149" y="99.5" text-anchor="middle">Forget sent</text>
+    <text x="202" y="97.5" fill="#8b949e">Note:</text>
+    <rect x="238" y="85" width="200" height="22" rx="4" fill="#0d1117" stroke="#30363d"/>
+    <text x="246" y="99.5" fill="#e6edf3">auth looks client-side only</text>
+    <rect x="680" y="85" width="76" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+    <text x="718" y="99.5" text-anchor="middle">Open inbox</text>
+    <rect x="762" y="85" width="146" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+    <text x="835" y="99.5" text-anchor="middle">Mark all read (archive)</text>
   </g>
+
+  <!-- table header -->
+  <rect x="12" y="120" width="916" height="24" fill="#161b22" stroke="#30363d"/>
+  <g font-size="10.5" fill="#c9d1d9">
+    <text x="18" y="136">ID</text>
+    <text x="58" y="136">Time</text>
+    <text x="136" y="136">Method</text>
+    <text x="196" y="136">Host</text>
+    <text x="346" y="136">Path</text>
+    <text x="586" y="136">Status</text>
+    <text x="636" y="136">Len</text>
+    <text x="684" y="136">Note</text>
+    <text x="834" y="136">Agent</text>
+  </g>
+  <line x1="828" y1="120" x2="828" y2="144" stroke="#30363d"/>
+  <line x1="12" y1="144" x2="928" y2="144" stroke="#30363d"/>
 
   <!-- rows -->
-  <g font-family="'SFMono-Regular',Menlo,Consolas,monospace" font-size="11.5">
-    <rect x="16" y="114" width="868" height="40" fill="#161b22"/>
-    <text x="30"  y="138" fill="#c9d1d9">9182</text>
-    <text x="94"  y="138" fill="#8b949e">02:58:41</text>
-    <text x="182" y="138" fill="#79c0ff">GET</text>
-    <text x="262" y="138" fill="#8b949e">api.example.com</text>
-    <text x="430" y="138" fill="#e6edf3">/api/v1/order/1337</text>
-    <rect x="726" y="124" width="40" height="18" rx="9" fill="#1a7f37"/>
-    <text x="746" y="137" text-anchor="middle" fill="#7ee287">200</text>
-    <text x="806" y="138" fill="#8b949e">4.1K</text>
-
-    <rect x="16" y="154" width="868" height="40" fill="#0d1117"/>
-    <text x="30"  y="178" fill="#c9d1d9">9179</text>
-    <text x="94"  y="178" fill="#8b949e">02:57:12</text>
-    <text x="182" y="178" fill="#79c0ff">POST</text>
-    <text x="262" y="178" fill="#8b949e">login.example.io</text>
-    <text x="430" y="178" fill="#e6edf3">/oauth/token</text>
-    <rect x="726" y="164" width="40" height="18" rx="9" fill="#8f2a1b"/>
-    <text x="746" y="177" text-anchor="middle" fill="#ffa198">401</text>
-    <text x="806" y="178" fill="#8b949e">312b</text>
-
-    <rect x="16" y="194" width="868" height="40" fill="#161b22"/>
-    <rect x="17" y="194.5" width="866" height="39" fill="#1a2332" stroke="#29405e" stroke-width="1"/>
-    <text x="30"  y="218" fill="#c9d1d9">9166</text>
-    <text x="94"  y="218" fill="#8b949e">02:55:04</text>
-    <text x="182" y="218" fill="#79c0ff">GET</text>
-    <text x="262" y="218" fill="#8b949e">api.example.com</text>
-    <text x="430" y="218" fill="#e6edf3">/api/v1/admin/users?limit=100</text>
-    <rect x="726" y="204" width="40" height="18" rx="9" fill="#8f2a1b"/>
-    <text x="746" y="217" text-anchor="middle" fill="#ffa198">403</text>
-    <text x="806" y="218" fill="#8b949e">1.2K</text>
-
-    <rect x="16" y="234" width="868" height="40" fill="#0d1117"/>
-    <text x="30"  y="258" fill="#c9d1d9">9153</text>
-    <text x="94"  y="258" fill="#8b949e">02:52:47</text>
-    <text x="182" y="258" fill="#f0883e">PUT</text>
-    <text x="262" y="258" fill="#8b949e">api.example.com</text>
-    <text x="430" y="258" fill="#e6edf3">/api/v2/profile/5421</text>
-    <rect x="726" y="244" width="40" height="18" rx="9" fill="#1a7f37"/>
-    <text x="746" y="257" text-anchor="middle" fill="#7ee287">200</text>
-    <text x="806" y="258" fill="#8b949e">2.0K</text>
-
-    <rect x="16" y="274" width="868" height="40" fill="#161b22"/>
-    <text x="30"  y="298" fill="#c9d1d9">9141</text>
-    <text x="94"  y="298" fill="#8b949e">02:51:19</text>
-    <text x="182" y="298" fill="#79c0ff">GET</text>
-    <text x="262" y="298" fill="#8b949e">cdn.example.net</text>
-    <text x="430" y="298" fill="#e6edf3">/static/js/app.9f3a.js</text>
-    <rect x="726" y="284" width="40" height="18" rx="9" fill="#1a7f37"/>
-    <text x="746" y="297" text-anchor="middle" fill="#7ee287">200</text>
-    <text x="806" y="298" fill="#8b949e">180K</text>
-
-    <rect x="16" y="314" width="868" height="40" fill="#0d1117"/>
-    <text x="30"  y="338" fill="#c9d1d9">9128</text>
-    <text x="94"  y="338" fill="#8b949e">02:49:55</text>
-    <text x="182" y="338" fill="#f0883e">DELETE</text>
-    <text x="262" y="338" fill="#8b949e">api.example.com</text>
-    <text x="430" y="338" fill="#e6edf3">/api/v1/session/9931</text>
-    <rect x="726" y="324" width="40" height="18" rx="9" fill="#39424a"/>
-    <text x="746" y="337" text-anchor="middle" fill="#c9d1d9">204</text>
-    <text x="806" y="338" fill="#8b949e">—</text>
-
-    <rect x="16" y="354" width="868" height="40" fill="#161b22"/>
-    <text x="30"  y="378" fill="#c9d1d9">9117</text>
-    <text x="94"  y="378" fill="#8b949e">02:48:03</text>
-    <text x="182" y="378" fill="#79c0ff">GET</text>
-    <text x="262" y="378" fill="#8b949e">api.example.com</text>
-    <text x="430" y="378" fill="#e6edf3">/api/v1/me/orders?status=pending</text>
-    <rect x="726" y="364" width="40" height="18" rx="9" fill="#1a7f37"/>
-    <text x="746" y="377" text-anchor="middle" fill="#7ee287">200</text>
-    <text x="806" y="378" fill="#8b949e">6.8K</text>
+  <g font-family="ui-monospace,'JetBrains Mono',Menlo,monospace" font-size="10.5">
+    <!-- batch 1 (replied) -->
+    <rect x="12" y="144" width="916" height="26" fill="#463B15"/>
+    <g fill="#f0f6fa">
+      <text x="18" y="161">9182</text>
+      <text x="58" y="161">12:04</text>
+      <text x="136" y="161">GET</text>
+      <text x="196" y="161">api.example.com</text>
+      <text x="346" y="161">/api/v1/me/orders</text>
+      <text x="586" y="161">200</text>
+      <text x="636" y="161">1243</text>
+      <text x="684" y="161">auth looks off</text>
+      <text x="834" y="161">✓ 3 IDOR hits</text>
+    </g>
+    <rect x="12" y="170" width="916" height="26" fill="#463B15"/>
+    <g fill="#f0f6fa">
+      <text x="18" y="187">9183</text>
+      <text x="58" y="187">12:04</text>
+      <text x="136" y="187">POST</text>
+      <text x="196" y="187">api.example.com</text>
+      <text x="346" y="187">/api/v2/checkout</text>
+      <text x="586" y="187">200</text>
+      <text x="636" y="187">812</text>
+      <text x="684" y="187"></text>
+      <text x="834" y="187">✓ 3 IDOR hits</text>
+    </g>
+    <!-- batch 2 (consumed, no reply yet) -->
+    <rect x="12" y="196" width="916" height="26" fill="#14424F"/>
+    <g fill="#f0f6fa">
+      <text x="18" y="213">9187</text>
+      <text x="58" y="213">12:11</text>
+      <text x="136" y="213">GET</text>
+      <text x="196" y="213">api.example.com</text>
+      <text x="346" y="213">/api/v1/admin/users</text>
+      <text x="586" y="213">403</text>
+      <text x="636" y="213">96</text>
+      <text x="684" y="213">scope check</text>
+      <text x="834" y="213">✓</text>
+    </g>
+    <!-- batch 3 (sent, pending) -->
+    <rect x="12" y="222" width="916" height="26" fill="#16401F"/>
+    <g fill="#f0f6fa">
+      <text x="18" y="239">9190</text>
+      <text x="58" y="239">12:15</text>
+      <text x="136" y="239">GET</text>
+      <text x="196" y="239">api.example.com</text>
+      <text x="346" y="239">/api/v1/me/orders/1337</text>
+      <text x="586" y="239">200</text>
+      <text x="636" y="239">1180</text>
+      <text x="684" y="239"></text>
+      <text x="834" y="239">sent</text>
+    </g>
+    <!-- untagged rows -->
+    <g fill="#c9d1d9">
+      <text x="18" y="265">9194</text>
+      <text x="58" y="265">12:19</text>
+      <text x="136" y="265">PUT</text>
+      <text x="196" y="265">api.example.com</text>
+      <text x="346" y="265">/api/v1/me/email</text>
+      <text x="586" y="265">204</text>
+      <text x="636" y="265">0</text>
+      <text x="18" y="291">9199</text>
+      <text x="58" y="291">12:26</text>
+      <text x="136" y="291">GET</text>
+      <text x="196" y="291">cdn.example.com</text>
+      <text x="346" y="291">/assets/app.js</text>
+      <text x="586" y="291">200</text>
+      <text x="636" y="291">58344</text>
+      <text x="18" y="317">9203</text>
+      <text x="58" y="317">12:31</text>
+      <text x="136" y="317">POST</text>
+      <text x="196" y="317">api.example.com</text>
+      <text x="346" y="317">/api/v1/login</text>
+      <text x="586" y="317">302</text>
+      <text x="636" y="317">0</text>
+    </g>
   </g>
 
-  <!-- status bar -->
-  <rect x="0" y="404" width="900" height="30" fill="#161b22"/>
-  <line x1="0" y1="404" x2="900" y2="404" stroke="#30363d"/>
-  <text x="20" y="423" fill="#8b949e" font-size="11">Loaded 8 of 1,204 entries · newest first</text>
-  <rect x="580" y="408" width="150" height="22" rx="11" fill="#238636"/>
-  <text x="655" y="423" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">pending unread: 0</text>
-  <text x="760" y="423" fill="#8b949e" font-size="11">Sent 12 item(s) ✓</text>
+  <!-- footer: inbox dir -->
+  <rect x="8" y="334" width="924" height="30" rx="6" fill="#161b22" stroke="#21262d"/>
+  <text x="16" y="353" font-size="11" fill="#8b949e">Inbox dir:</text>
+  <rect x="76" y="338" width="660" height="22" rx="4" fill="#0d1117" stroke="#30363d"/>
+  <text x="84" y="353" font-size="10.5" fill="#e6edf3" font-family="ui-monospace,Menlo,monospace">/home/you/.ai-inbox/burp</text>
+  <rect x="744" y="338" width="40" height="22" rx="4" fill="#21262d" stroke="#30363d"/>
+  <text x="764" y="353" font-size="11" fill="#c9d1d9" text-anchor="middle">Set</text>
 
-  <text x="450" y="458" text-anchor="middle" fill="#566065" font-size="11">
-    mock of the Burp “AI Bridge” tab — toolbar · multi-select table · live pending counter
-  </text>
+  <!-- status row -->
+  <text x="16" y="386" font-size="11" fill="#8b949e">Select rows and click Send.</text>
+  <text x="924" y="386" font-size="11" fill="#8b949e" text-anchor="end">Pending unread: 0</text>
 </svg>
