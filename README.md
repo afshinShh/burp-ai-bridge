@@ -54,6 +54,11 @@ by any number of agent sessions and models.
 - `In scope only` restricts the list to requests inside Burp's Target scope
   (Target → Scope). Off by default; when both filters are on they combine.
 - The inbox path can be changed in the tab footer; the override persists.
+- Checkbox states (`Include response`, `Hide sent`, `In scope only`) persist across
+  restarts too.
+- **Closing the loop** — the `Agent` column shows what happened after the hand-off:
+  `sent` while the files wait, `✓` once an agent archives them, and the agent's
+  short reply once it posts one. Checkbox picks are remembered.
 
 On the agent side, ask in chat: `check the burp inbox and test what's there`.
 Agents pull on request — see [Notes](#notes).
@@ -74,6 +79,9 @@ cat >> ~/.config/opencode/AGENTS.md <<'EOF'
   send_http2_request using host/port/tls, or curl), report back in chat.
 - Move BOTH files of each handled pair into ~/.ai-inbox/burp/archive/; never edit manifest.jsonl.
   Lines without a file field are lifecycle events; ignore them.
+- Reply by APPENDING one JSON line per batch to ~/.ai-inbox/burp/results.jsonl:
+  {"ts","batch","summary","by"} — batch is the id on the manifest lines you handled;
+  the Burp tab shows your summary on the colored rows.
 EOF
 ```
 
@@ -90,6 +98,7 @@ is what every session sees.
 ```
 ~/.ai-inbox/burp/
 ├── manifest.jsonl    append-only JSON lines describing every item
+├── results.jsonl     agent replies (one JSON line per batch, append-only)
 ├── *.request.http    pending items
 ├── *.response.http   optional companion files
 ├── archive/          consumed items, moved here by agents
@@ -114,6 +123,7 @@ One line per item in `manifest.jsonl`:
 | `status` | shortlisting |
 | `note` | the sender's intent |
 | `source` | `proxy-history` or `message-editor` |
+| `batch` | id shared by items sent together; the key agents use in `results.jsonl` |
 
 Samples: [inbox-samples/](inbox-samples/). Agent contract:
 [docs/agent-protocol.md](docs/agent-protocol.md). Worked examples:
@@ -143,13 +153,19 @@ Windows: `build.bat` (equivalent). CI compiles every push against
 - Agents pull; they are not pushed. The pending counter tells you files are
   waiting; the trigger is one sentence in the agent's chat.
 - `manifest.jsonl` is append-only and is never rewritten; `archive/` is the
-  consumption cursor, which doubles as a hunt log.
+  consumption cursor, which doubles as a hunt log. On long hunts the manifest
+  rotates itself at 2 MB / 5000 lines: history moves to
+  `archive/manifest-<stamp>.jsonl`, the live file keeps the newest entries.
+- `results.jsonl` is the agent's half of the ledger — one short JSON line per
+  batch, appended by the agent, read by the tab. Findings still go to chat;
+  the summary line just closes the visual loop.
 - Items from load and dir-change events also appear in the manifest, without a
   `file` field.
 - Multiple Burp instances: point each at its own folder via the override.
 - Nothing leaves the machine. The extension only writes the inbox directory and
   logs to Burp's extension output. Curate what you send — each send is a record
-  of a real request.
+  of a real request. The inbox is `0700` (owner-only) on POSIX filesystems; it
+  holds raw authenticated HTTP, so treat copies like secrets.
 - Requires Burp Suite Pro or Community with the Montoya API (2023.10 or newer).
   Verified loaded on current releases.
 

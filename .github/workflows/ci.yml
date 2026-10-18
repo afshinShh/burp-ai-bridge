@@ -29,3 +29,19 @@ jobs:
         with:
           name: AiAgentBridge
           path: AiAgentBridge.jar
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # proves the toolchain and all test suites behave on Windows too;
+      # POSIX-touching behavior must no-op cleanly there, not crash
+      - name: Build and run every test suite
+        shell: pwsh
+        run: ./build.bat

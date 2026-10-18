@@ -1,6 +1,6 @@
 # Agent protocol: consuming the burp inbox
 
-Version 1 · plain files at `~/.ai-inbox/burp` (override path is recorded in
+Version 2 · plain files at `~/.ai-inbox/burp` (override path is recorded in
 `README.md` in the inbox itself). **Implementers:** this is the contract that
 any agent can satisfy in a few lines of shell or a few hundred tokens of prompt.
 
@@ -12,6 +12,7 @@ any agent can satisfy in a few lines of shell or a few hundred tokens of prompt.
 ```
 ~/.ai-inbox/burp/
 ├── manifest.jsonl          journal — append-only. Never edit it.
+├── results.jsonl           agent replies — append-only. Agents write, tab reads.
 ├── *.request.http          PENDING — someone wants an agent to look at these
 ├── *.response.http         PENDING — response captured alongside (optional incl.)
 ├── archive/                CONSUMED — moved here by the agent that handled them
@@ -20,7 +21,8 @@ any agent can satisfy in a few lines of shell or a few hundred tokens of prompt.
 
 - **Pending** = `*.request.http` in the folder root (not in `archive/`).
   The extension's "Pending unread" counter shows this live, so agents that
-  archive correctly make the UI honest.
+  archive correctly make the UI honest. The tab's **Agent** column flips the
+  row to `✓` once you archive that item's files.
 - **archive/** is the consumption cursor. It doubles as a hunt diary for
   later sessions.
 - The folder must never be empty-empty: `manifest.jsonl` and `README.md` stay.
@@ -52,6 +54,7 @@ stateDiagram-v2
 | `method`,`path`,`httpVersion` | correct replay mode; `HTTP/2` → pseudo-header style / `send_http2_request` |
 | `status` | shortlist: auth-boundary crossings, weird 40x/200 gaps |
 | `source` | `proxy-history` = user-selected stream, `message-editor` = handpicked single |
+| `batch` | items sent together share this id; use it as your `results.jsonl` reply key |
 
 Do **not** re-send the request to produce a response you already have in
 `responseFile` — the human already paid for that round-trip.
@@ -67,6 +70,32 @@ Do **not** re-send the request to produce a response you already have in
 4. **Respect scope.** Items are from the human's authorized testing. Your
    replay/exploit choices inherit that authorization; your finesse does not
    inherit the target's patience. Rate-limit like a professional.
+
+## Agent replies (`results.jsonl`)
+
+When you finish work on a batch, APPEND one JSON line per batch to
+`results.jsonl` in the inbox root:
+
+```
+{"ts":"2026-10-18T07:31:02Z","batch":4,"summary":"3 IDOR candidates on /api/v2/users, details in chat","by":"opencode-glm"}
+```
+
+- `batch` — the id from the manifest lines you handled; this is how the Burp
+  tab joins your reply to the colored rows.
+- `summary` — one short line; the long story belongs in the chat that asked.
+- `by` — your agent/model name, so the human knows who to credit.
+- **Append only.** Never edit, reorder, or delete lines — same deal as the
+  manifest. A torn final line (crash mid-write) is skipped and retried by the
+  reader; don't try to repair it.
+
+## Rotation (what happens when the journal grows)
+
+`manifest.jsonl` rotates automatically at 2 MB or 5000 lines: the full history
+moves to `archive/manifest-<stamp>.jsonl` and the live file restarts with the
+newest 200 lines plus a `rotated` event naming the archive. If the manifest is
+momentarily missing, that's a rotation in flight — retry next tick. Old
+`results.jsonl` entries for batches whose manifest lines moved to the archive
+stay valid; the tab keeps them by batch id.
 
 ## Design notes (for implementers)
 
