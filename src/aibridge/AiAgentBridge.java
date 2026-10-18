@@ -70,15 +70,18 @@ public final class AiAgentBridge implements BurpExtension {
         final int colorIdx;
         final long batch;
         final String note;
-        SentRec(String hash, int colorIdx, long batch, String note) {
+        /** inbox file base name (no extension) written for this item; v1 state left it blank. */
+        final String file;
+        SentRec(String hash, int colorIdx, long batch, String note, String file) {
             this.hash = hash;
             this.colorIdx = colorIdx;
             this.batch = batch;
             this.note = note == null ? "" : note;
+            this.file = file == null ? "" : file;
         }
     }
 
-    static final String STATE_KEY = "sentState-v1";
+    static final String STATE_KEY = "sentState-v2";
     static final int STATE_CAP = 1500;
     static final int NOTE_MAX = 160;
 
@@ -239,10 +242,10 @@ public final class AiAgentBridge implements BurpExtension {
     }
 
     /** Mark an item as handed off; called once per sent item inside send(). */
-    void tagSent(Item it, int colorIdx, long batch, String note) {
+    void tagSent(Item it, int colorIdx, long batch, String note, String base) {
         String h = hashOf(it);
         if (h == null) return;
-        SentRec r = new SentRec(h, colorIdx, batch, compactNoteStatic(note));
+        SentRec r = new SentRec(h, colorIdx, batch, compactNoteStatic(note), base == null ? "" : base);
         sentIndex.put(h, r);
         sentOrder.add(r);
         persistSentState();
@@ -270,7 +273,9 @@ public final class AiAgentBridge implements BurpExtension {
 
     static SentRec recFrom(String[] e) {
         try {
-            return new SentRec(e[0], Integer.parseInt(e[1]), Long.parseLong(e[2]), compactNoteStatic(e[3]));
+            String file = e.length > 4 ? e[4] : ""; // v1 state had no file field
+            return new SentRec(e[0], Integer.parseInt(e[1]), Long.parseLong(e[2]),
+                    compactNoteStatic(e[3]), file);
         } catch (Throwable t) {
             return null;
         }
@@ -283,7 +288,7 @@ public final class AiAgentBridge implements BurpExtension {
             snap = new ArrayList<String[]>(sentOrder.size());
             for (SentRec r : sentOrder) {
                 snap.add(new String[]{r.hash, String.valueOf(r.colorIdx),
-                        String.valueOf(r.batch), r.note});
+                        String.valueOf(r.batch), r.note, r.file});
             }
         }
         List<String[]> capped = capEntries(snap, STATE_CAP);
@@ -333,14 +338,16 @@ public final class AiAgentBridge implements BurpExtension {
     }
 
     /**
-     * Tab-separated lines: hash \t colorIdx \t batch \t compacted-note \n.
-     * Compact so it survives Burp's extensionData round trips without escaping.
+     * Tab-separated lines: hash \t colorIdx \t batch \t note \t file-base \n.
+     * v1 state wrote four fields; decoding tolerates that (file stays blank).
      */
     static String encodeSentState(List<String[]> entries) {
         StringBuilder sb = new StringBuilder();
         for (String[] e : entries) {
             sb.append(e[0]).append('\t').append(e[1]).append('\t').append(e[2])
-              .append('\t').append(compactNoteStatic(e[3])).append('\n');
+              .append('\t').append(compactNoteStatic(e[3]));
+            if (e.length > 4 && e[4] != null) sb.append('\t').append(e[4]);
+            sb.append('\n');
         }
         return sb.toString();
     }
@@ -352,7 +359,8 @@ public final class AiAgentBridge implements BurpExtension {
             if (line.trim().isEmpty()) continue;
             String[] parts = line.split("\t", -1);
             if (parts.length < 4) continue;
-            out.add(new String[]{parts[0], parts[1], parts[2], compactNoteStatic(parts[3])});
+            String file = parts.length > 4 ? parts[4] : "";
+            out.add(new String[]{parts[0], parts[1], parts[2], compactNoteStatic(parts[3]), file});
         }
         return out;
     }
@@ -448,7 +456,7 @@ public final class AiAgentBridge implements BurpExtension {
                 m.put("batch", batch);
 
                 lines.add(toJson(m));
-                tagSent(it, colorIdx, batch, note);
+                tagSent(it, colorIdx, batch, note, base);
                 ok++;
             } catch (Throwable t) {
                 api.logging().logToError("send failed: " + t);

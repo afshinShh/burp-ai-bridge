@@ -109,8 +109,8 @@ public final class RendererResetTest {
         s.table.setAutoCreateRowSorter(false);
         List<AiAgentBridge.Item> rows = Arrays.asList(s0, u1, s2, u3);
         s.model.set(rows);
-        s.bridge.tagSent(s0, 0, 1, "batch one");
-        s.bridge.tagSent(s2, 1, 2, "batch two");
+        s.bridge.tagSent(s0, 0, 1, "batch one", "20261018-080000-001_api.example.com");
+        s.bridge.tagSent(s2, 1, 2, "batch two", "20261018-080000-002_api.example.com");
         s.defaultBg = s.table.getBackground();
         s.first = AiAgentBridge.PALETTE_LIGHT[0];
         s.second = AiAgentBridge.PALETTE_LIGHT[1];
