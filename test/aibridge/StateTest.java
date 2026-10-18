@@ -96,9 +96,9 @@ public final class StateTest {
         eq("line one line two column equals end", clean, "compaction flattens whitespace");
 
         StringBuilder big = new StringBuilder();
-        for (int i = 0; i < 50; i++) big.append("0123456789");
+        while (big.length() < AiAgentBridge.NOTE_MAX + 300) big.append("0123456789");
         String capped = AiAgentBridge.compactNoteStatic(big.toString());
-        eq(160, capped.length(), "compaction caps length");
+        eq(AiAgentBridge.NOTE_MAX, capped.length(), "compaction caps length");
         eq("0123456789", capped.substring(0, 10), "compaction preserves prefix");
     }
 

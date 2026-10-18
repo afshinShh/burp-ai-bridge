@@ -83,7 +83,7 @@ public final class AiAgentBridge implements BurpExtension {
 
     static final String STATE_KEY = "sentState-v2";
     static final int STATE_CAP = 1500;
-    static final int NOTE_MAX = 160;
+    static final int NOTE_MAX = 1000;
 
     /** hash -> record, for filter lookups on EDT (refresh thread) and render. */
     final ConcurrentHashMap<String, SentRec> sentIndex = new ConcurrentHashMap<String, SentRec>();
@@ -580,6 +580,22 @@ public final class AiAgentBridge implements BurpExtension {
         }
         if (consumed) return "✓";
         return "sent";
+    }
+
+    /**
+     * Full-text hover for cells whose column truncates visually: the note and
+     * the agent state. Other columns inherit JTable's default tooltip.
+     */
+    String tooltipFor(Item it, int modelCol) {
+        if (modelCol == 7) {
+            String n = noteFor(it);
+            return n.isEmpty() ? null : n;
+        }
+        if (modelCol == 8) {
+            String s = agentStateFor(it);
+            return s.isEmpty() ? null : s;
+        }
+        return null;
     }
 
     // ------------------------------------------------------------ sent-state codec
@@ -1107,6 +1123,19 @@ public final class AiAgentBridge implements BurpExtension {
             this.bridge = bridge;
         }
 
+        /** full-text hover for the Note and Agent columns; others keep default */
+        @Override public String getToolTipText(java.awt.event.MouseEvent e) {
+            try {
+                int v = rowAtPoint(e.getPoint());
+                int c = columnAtPoint(e.getPoint());
+                if (v >= 0 && c >= 0) {
+                    Item it = ((HistoryModel) getModel()).at(convertRowIndexToModel(v));
+                    return bridge.tooltipFor(it, convertColumnIndexToModel(c));
+                }
+            } catch (Throwable ignored) { }
+            return super.getToolTipText(e);
+        }
+
         @Override public Component prepareRenderer(
                 javax.swing.table.TableCellRenderer renderer, int row, int column) {
             Component c = super.prepareRenderer(renderer, row, column);
@@ -1130,6 +1159,70 @@ public final class AiAgentBridge implements BurpExtension {
 
     // -------------------------------------------------------------------- UI
 
+    /**
+     * Bottom pane of the tab: the full raw request/response of the selected
+     * row. Rendering is capped for huge bodies (the EDT must stay responsive
+     * on multi-megabyte responses); the disk file in the inbox stays complete.
+     */
+    static final class ItemViewer extends JTabbedPane {
+        static final int MAX_CHARS = 400_000;
+        private final JTextArea reqArea = textArea();
+        private final JTextArea respArea = textArea();
+
+        ItemViewer() {
+            setTabLayoutPolicy(SCROLL_TAB_LAYOUT);
+            addTab("Request", new JScrollPane(reqArea));
+            addTab("Response", new JScrollPane(respArea));
+            clear();
+        }
+
+        private static JTextArea textArea() {
+            JTextArea a = new JTextArea();
+            a.setEditable(false);
+            a.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            return a;
+        }
+
+        void showItem(Item it) {
+            String req;
+            try {
+                req = it.req == null ? "" : new String(
+                        it.req.toByteArray().getBytes(), StandardCharsets.UTF_8);
+            } catch (Throwable t) {
+                req = "(unreadable request)";
+            }
+            apply(reqArea, req);
+            String resp;
+            if (it.resp == null) {
+                resp = "(response not included)";
+            } else {
+                try {
+                    resp = new String(
+                            it.resp.toByteArray().getBytes(), StandardCharsets.UTF_8);
+                } catch (Throwable t) {
+                    resp = "(unreadable response)";
+                }
+            }
+            apply(respArea, resp);
+        }
+
+        void clear() {
+            apply(reqArea, "");
+            apply(respArea, "");
+        }
+
+        private static void apply(JTextArea a, String s) {
+            if (s == null) s = "";
+            a.setText(s.length() > MAX_CHARS
+                    ? s.substring(0, MAX_CHARS) + "\n\n... [display truncated]"
+                    : s);
+            a.setCaretPosition(0);
+        }
+
+        String requestText() { return reqArea.getText(); }
+        String responseText() { return respArea.getText(); }
+    }
+
     static final class UiPanel {
         final JPanel root = new JPanel(new BorderLayout(6, 6));
         final HistoryModel model;
@@ -1145,6 +1238,7 @@ public final class AiAgentBridge implements BurpExtension {
         final JLabel pending = new JLabel("Pending unread: 0");
         final JTextField pathField;
         final AiAgentBridge bridge;
+        final ItemViewer viewer = new ItemViewer();
 
         UiPanel(AiAgentBridge bridge) {
             this.bridge = bridge;
@@ -1210,7 +1304,18 @@ public final class AiAgentBridge implements BurpExtension {
             statusRow.add(pending, BorderLayout.EAST);
             south.add(statusRow, BorderLayout.SOUTH);
 
-            root.add(new JScrollPane(table), BorderLayout.CENTER);
+            root.add(bar, BorderLayout.NORTH);
+
+            // detail: preview pane under the table, opens on row selection;
+            // the viewer keeps the top side dominant and stays expandable
+            javax.swing.JSplitPane split = new javax.swing.JSplitPane(
+                    javax.swing.JSplitPane.VERTICAL_SPLIT,
+                    new JScrollPane(table), viewer);
+            split.setResizeWeight(0.75);
+            split.setOneTouchExpandable(true);
+            split.setBorder(null);
+            viewer.setPreferredSize(new Dimension(100, 220));
+            root.add(split, BorderLayout.CENTER);
             root.add(south, BorderLayout.SOUTH);
 
             // initial column widths
@@ -1225,6 +1330,41 @@ public final class AiAgentBridge implements BurpExtension {
             table.getColumnModel().getColumn(8).setPreferredWidth(150);
 
             filter.addActionListener(e -> refresh());
+
+            // selection drives the preview pane; clearing empties it
+            table.getSelectionModel().addListSelectionListener(e -> {
+                if (e.getValueIsAdjusting()) return;
+                try {
+                    int v = table.getSelectedRow();
+                    if (v < 0) {
+                        viewer.clear();
+                        return;
+                    }
+                    int m = table.convertRowIndexToModel(v);
+                    viewer.showItem(model.at(m));
+                } catch (Throwable ignored) { }
+            });
+
+            // double-click opens the raw file on disk for rows already handed off
+            table.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() != 2) return;
+                    try {
+                        int v = table.getSelectedRow();
+                        if (v < 0) return;
+                        int m = table.convertRowIndexToModel(v);
+                        Item it = model.at(m);
+                        SentRec rec = bridge.sentIndex.get(bridge.hashOf(it));
+                        if (rec != null && !rec.file.isEmpty()) {
+                            java.io.File f = bridge.inbox()
+                                    .resolve(rec.file + ".request.http").toFile();
+                            if (f.exists() && java.awt.Desktop.isDesktopSupported()) {
+                                java.awt.Desktop.getDesktop().open(f);
+                            }
+                        }
+                    } catch (Throwable ignored) { }
+                }
+            });
             hideSent.addActionListener(e -> {
                 bridge.optHideSent = hideSent.isSelected();
                 bridge.saveOptions();

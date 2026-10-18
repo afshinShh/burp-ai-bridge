@@ -59,6 +59,13 @@ by any number of agent sessions and models.
 - **Closing the loop** — the `Agent` column shows what happened after the hand-off:
   `sent` while the files wait, `✓` once an agent archives them, and the agent's
   short reply once it posts one. Checkbox picks are remembered.
+- **Row detail** — click a row and the pane below the table shows its full raw
+  request and response on `Request` / `Response` tabs (scrollable; huge bodies
+  are display-capped to keep the UI quick — the inbox file always stays
+  complete). Double-click a row you already handed off to open its raw file.
+- Hover the `Note` or `Agent` cell for the full text when the column is too
+  narrow. Stored notes keep up to 1000 characters (the manifest carries the
+  full note regardless).
 
 On the agent side, ask in chat: `check the burp inbox and test what's there`.
 Agents pull on request — see [Notes](#notes).

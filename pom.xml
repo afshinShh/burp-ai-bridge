@@ -13,7 +13,7 @@
 
   <groupId>com.afshinshh</groupId>
   <artifactId>ai-agent-bridge</artifactId>
-  <version>1.2.0</version>
+  <version>1.2.1</version>
   <packaging>jar</packaging>
   <name>AI Agent Bridge</name>
   <description>Bridges Burp Suite and local AI coding agents through a folder on disk - no server, no network.</description>
