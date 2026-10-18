@@ -31,6 +31,10 @@ jar cf AiAgentBridge.jar -C build aibridge
 New-Item -ItemType Directory -Force -Path build-test | Out-Null
 javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\StateTest.java
 java -cp "$BurpJar;build;build-test" aibridge.StateTest
+javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\RendererResetTest.java
+java -cp "$BurpJar;build;build-test" aibridge.RendererResetTest
+javac -cp "$BurpJar;build;build-test" -d build-test test\aibridge\UrlForTest.java
+java -cp "$BurpJar;build;build-test" aibridge.UrlForTest
 
 Write-Host "[+] wrote $(Join-Path $PSScriptRoot 'AiAgentBridge.jar')"
 Write-Host "    load it via: Burp -> Extender -> Extensions -> Add -> Java"

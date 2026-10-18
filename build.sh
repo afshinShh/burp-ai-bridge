@@ -29,8 +29,10 @@ javac -cp "$API_JAR" -d build src/aibridge/AiAgentBridge.java
 jar cf AiAgentBridge.jar -C build aibridge
 
 mkdir -p build-test
-javac -cp "$API_JAR:build:build-test" -d build-test test/aibridge/StateTest.java
+javac -cp "$API_JAR:build:build-test" -d build-test test/aibridge/*.java
 java -cp "$API_JAR:build:build-test" aibridge.StateTest
+java -cp "$API_JAR:build:build-test" aibridge.RendererResetTest
+java -cp "$API_JAR:build:build-test" aibridge.UrlForTest
 
 echo "[+] wrote $(pwd)/AiAgentBridge.jar"
 echo "    load it via: Burp -> Extender -> Extensions -> Add -> Java"

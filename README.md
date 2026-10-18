@@ -51,6 +51,8 @@ by any number of agent sessions and models.
 - `Hide sent` removes rows whose request already went to the box, so the list only
   shows what you haven't handed off yet. `Forget sent` drops the memory when you
   want to re-send previously handled rows (they still highlight/notes until you do).
+- `In scope only` restricts the list to requests inside Burp's Target scope
+  (Target → Scope). Off by default; when both filters are on they combine.
 - The inbox path can be changed in the tab footer; the override persists.
 
 On the agent side, ask in chat: `check the burp inbox and test what's there`.

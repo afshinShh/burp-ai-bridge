@@ -277,6 +277,7 @@ public final class AiAgentBridge implements BurpExtension {
     }
 
     void persistSentState() {
+        if (api == null) return; // headless/unit-test construction
         List<String[]> snap;
         synchronized (sentOrder) {
             snap = new ArrayList<String[]>(sentOrder.size());
@@ -517,6 +518,44 @@ public final class AiAgentBridge implements BurpExtension {
         try { return it.svc.secure(); } catch (Throwable t) { return false; }
     }
 
+    /**
+     * URL as Burp's Target scope sees it, rebuilt from parts, because proxy
+     * rows do not always carry a full URL. Normalized: default ports implicit,
+     * empty path becomes "/".
+     */
+    static String urlFor(Item it) {
+        String host = "?";
+        try { host = it.svc.host(); } catch (Throwable ignored) { }
+        if (host == null || host.isEmpty()) host = "?";
+        int port = 0;
+        try { port = it.svc.port(); } catch (Throwable ignored) { }
+        boolean tls = false;
+        try { tls = it.svc.secure(); } catch (Throwable ignored) { }
+        String path = "/";
+        try {
+            if (it.req != null && it.req.path() != null && !it.req.path().isEmpty()) {
+                path = it.req.path();
+            }
+        } catch (Throwable ignored) { }
+        String scheme = tls ? "https" : "http";
+        boolean defaultPort = (tls && port == 443) || (!tls && port == 80);
+        return scheme + "://" + host + (port > 0 && !defaultPort ? ":" + port : "") + path;
+    }
+
+    /** Target-scope membership for a row; unreachable APIs stay visible. */
+    boolean inScope(Item it) {
+        if (it == null || it.req == null) return true;
+        try {
+            return api.scope().isInScope(it.req.url());
+        } catch (Throwable t) {
+            try {
+                return api.scope().isInScope(urlFor(it));
+            } catch (Throwable t2) {
+                return true;
+            }
+        }
+    }
+
     String safeMethod(Item it) {
         try { return it.req.method(); } catch (Throwable t) { return "?"; }
     }
@@ -702,7 +741,10 @@ public final class AiAgentBridge implements BurpExtension {
                 if (!isRowSelected(row)) {
                     int m = convertRowIndexToModel(row);
                     Color bg = bridge.colorFor(((HistoryModel) getModel()).at(m));
-                    if (bg != null) c.setBackground(bg);
+                    // ALWAYS assign: Swing reuses one renderer component per column,
+                    // so a skip here would leak the previous cell's background onto
+                    // whatever rows are painted next (viewport/scroll dependent).
+                    c.setBackground(bg != null ? bg : getBackground());
                 }
             } catch (Throwable ignored) { }
             return c;
@@ -720,6 +762,7 @@ public final class AiAgentBridge implements BurpExtension {
         final JTextField note = new JTextField(18);
         final JCheckBox includeResp = new JCheckBox("Include response", true);
         final JCheckBox hideSent = new JCheckBox("Hide sent");
+        final JCheckBox inScopeOnly = new JCheckBox("In scope only");
         final JButton forgetSentBtn = new JButton("Forget sent");
         final JLabel status = new JLabel("Select rows and click Send.");
         final JLabel pending = new JLabel("Pending unread: 0");
@@ -751,6 +794,7 @@ public final class AiAgentBridge implements BurpExtension {
             bar.add(maxRows);
             bar.add(includeResp);
             bar.add(hideSent);
+            bar.add(inScopeOnly);
             forgetSentBtn.setToolTipText(
                     "Drop colors/notes/the sent-memory so previously sent rows can be sent again");
             forgetSentBtn.addActionListener(e -> bridge.forgetSent());
@@ -800,6 +844,8 @@ public final class AiAgentBridge implements BurpExtension {
 
             filter.addActionListener(e -> refresh());
             hideSent.addActionListener(e -> refresh());
+            inScopeOnly.addActionListener(e -> refresh());
+            inScopeOnly.setToolTipText("Show only requests inside Burp's Target Scope (Target -> Scope)");
         }
 
         void refresh() {
@@ -809,12 +855,14 @@ public final class AiAgentBridge implements BurpExtension {
             catch (NumberFormatException ignored) { }
             final int max = maxRaw;
             final String f = filter.getText().trim().toLowerCase();
+            final boolean hide = hideSent.isSelected();
+            final boolean scopeOnly = inScopeOnly.isSelected();
             new Thread(new Runnable() {
                 @Override public void run() {
                     List<Item> out = new ArrayList<Item>();
                     final int[] hidden = {0};
+                    final int[] oos = {0};
                     int total = 0;
-                    boolean hide = hideSent.isSelected();
                     try {
                         List<ProxyHttpRequestResponse> hist = b.api.proxy().history();
                         total = hist.size();
@@ -833,6 +881,10 @@ public final class AiAgentBridge implements BurpExtension {
                                         continue;
                                     }
                                 }
+                                if (scopeOnly && !b.inScope(it)) {
+                                    oos[0]++;
+                                    continue;
+                                }
                                 out.add(it);
                             } catch (Throwable ignored) { }
                         }
@@ -842,12 +894,14 @@ public final class AiAgentBridge implements BurpExtension {
                     final List<Item> res = out;
                     final int tot = total;
                     final int hid = hidden[0];
+                    final int outScope = oos[0];
                     SwingUtilities.invokeLater(new Runnable() {
                         @Override public void run() {
                             model.set(res);
                             setStatus("Loaded " + res.size() + " entry/entries (of " + tot
                                     + " in history"
                                     + (hid > 0 ? ", " + hid + " already sent hidden" : "")
+                                    + (outScope > 0 ? ", " + outScope + " out of scope hidden" : "")
                                     + "). Newest first.");
                             updatePending();
                         }
