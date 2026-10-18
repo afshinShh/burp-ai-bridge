@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 500" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 520" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
@@ -6,76 +6,84 @@
     <marker id="arrOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#ee8b46"/>
     </marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/>
+    </marker>
   </defs>
 
   <!-- title -->
-  <text x="460" y="42" text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="600">
-    How a request travels — from Burp Suite to any model on your machine
+  <text x="460" y="40" text-anchor="middle" fill="#e6edf3" font-size="19" font-weight="600">
+    From Burp Suite to any AI agent on your machine
   </text>
 
-  <!-- LEFT: Burp -->
-  <rect x="28" y="88" width="252" height="234" rx="12" fill="#161b22" stroke="#30363d"/>
-  <circle cx="50" cy="112" r="6" fill="#ee8b46"/>
-  <text x="64" y="117" fill="#e6edf3" font-size="14" font-weight="600">Burp Suite (you)</text>
-  <text x="50" y="141" fill="#8b949e" font-size="11">Proxy history, Repeater, any viewer</text>
+  <!-- trigger pill -->
+  <rect x="280" y="60" width="360" height="26" rx="13" fill="#1a2332" stroke="#29405e"/>
+  <text x="460" y="77" text-anchor="middle" fill="#79c0ff" font-size="11.5">
+    you say: “check the burp inbox” in your agent chat
+  </text>
 
-  <!-- left inner: AI Bridge tab mock -->
-  <rect x="44" y="156" width="220" height="120" rx="8" fill="#0d1117" stroke="#30363d"/>
-  <text x="56" y="176" fill="#79c0ff" font-size="11" font-weight="600">AI Bridge</text>
-  <rect x="56" y="188" width="196" height="10" rx="2" fill="#21262d"/>
-  <rect x="56" y="204" width="196" height="10" rx="2" fill="#1a2332" stroke="#29405e" stroke-width="0.6"/>
-  <rect x="56" y="220" width="196" height="10" rx="2" fill="#21262d"/>
-  <rect x="56" y="236" width="196" height="10" rx="2" fill="#21262d"/>
-  <rect x="56" y="252" width="196" height="14" rx="3" fill="#b95318"/>
-  <text x="154" y="263" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Send selected</text>
+  <!-- ================= LEFT: Burp ================= -->
+  <rect x="24" y="104" width="252" height="240" rx="12" fill="#161b22" stroke="#30363d"/>
+  <circle cx="44" cy="128" r="6" fill="#ee8b46"/>
+  <text x="58" y="133" fill="#e6edf3" font-size="14" font-weight="600">Burp Suite (you)</text>
+  <text x="46" y="152" fill="#8b949e" font-size="11">Proxy history · Repeater · viewers</text>
 
-  <!-- loop back arrow (dashed) -->
-  <path d="M 762 322 L 762 384 L 156 384 L 156 330" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arr)"/>
-  <text x="458" y="378" text-anchor="middle" fill="#3fb950" font-size="11">agent reports findings in your chat · moves consumed files into archive/</text>
+  <rect x="44" y="166" width="200" height="146" rx="8" fill="#0d1117" stroke="#30363d"/>
+  <text x="56" y="185" fill="#79c0ff" font-size="11" font-weight="600">AI Bridge</text>
+  <rect x="56" y="196" width="176" height="10" rx="2" fill="#21262d"/>
+  <rect x="56" y="212" width="176" height="10" rx="2" fill="#1a2332" stroke="#29405e" stroke-width="0.6"/>
+  <rect x="56" y="228" width="176" height="10" rx="2" fill="#21262d"/>
+  <rect x="56" y="244" width="176" height="10" rx="2" fill="#21262d"/>
+  <rect x="56" y="270" width="176" height="22" rx="4" fill="#b95318"/>
+  <text x="144" y="285" text-anchor="middle" fill="#ffffff" font-size="10.5" font-weight="600">Send selected</text>
+  <text x="144" y="306" text-anchor="middle" fill="#8b949e" font-size="9.5">right-click menu everywhere too</text>
 
-  <!-- LEFT -> CENTER arrow -->
-  <line x1="284" y1="200" x2="392" y2="200" stroke="#ee8b46" stroke-width="2" marker-end="url(#arrOrange)"/>
-  <text x="338" y="182" text-anchor="middle" fill="#ee8b46" font-size="12" font-weight="600">Send</text>
-  <text x="338" y="218" text-anchor="middle" fill="#8b949e" font-size="10">raw request + response</text>
-  <text x="338" y="232" text-anchor="middle" fill="#8b949e" font-size="10">+ your note, as files</text>
+  <!-- arrow 1 -->
+  <line x1="282" y1="224" x2="410" y2="224" stroke="#ee8b46" stroke-width="2" marker-end="url(#arrOrange)"/>
 
-  <!-- CENTER: filesystem inbox -->
-  <rect x="400" y="88" width="200" height="234" rx="12" fill="#101828" stroke="#29405e"/>
-  <path d="M422 112 h44 l10 12 h100 a8 8 0 0 1 8 8 v10 h-162 z" fill="#1f6feb" opacity="0.9"/>
-  <text x="500" y="124" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" font-family="'SFMono-Regular',Menlo,Consolas,monospace">~/.ai-inbox/burp/</text>
+  <!-- ================= CENTER: file inbox ================= -->
+  <rect x="420" y="104" width="208" height="240" rx="12" fill="#101828" stroke="#29405e"/>
+  <rect x="448" y="126" width="152" height="26" rx="6" fill="#1f6feb"/>
+  <text x="524" y="143" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600" font-family="'SFMono-Regular',Menlo,Consolas,monospace">~/.ai-inbox/burp/</text>
 
-  <text x="416" y="158" fill="#c9d1d9" font-size="11" font-family="'SFMono-Regular',Menlo,Consolas,monospace">manifest.jsonl</text>
-  <text x="416" y="182" fill="#c9d1d9" font-size="11" font-family="'SFMono-Regular',Menlo,Consolas,monospace">….request.http</text>
-  <text x="416" y="206" fill="#c9d1d9" font-size="11" font-family="'SFMono-Regular',Menlo,Consolas,monospace">….response.http</text>
-  <text x="416" y="230" fill="#8b949e" font-size="11" font-family="'SFMono-Regular',Menlo,Consolas,monospace">archive/</text>
-  <rect x="416" y="252" width="168" height="26" rx="13" fill="#238636"/>
-  <text x="500" y="269" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">pending unread: 12</text>
+  <text x="452" y="180" fill="#c9d1d9" font-size="10.5" font-family="'SFMono-Regular',Menlo,Consolas,monospace">manifest.jsonl</text>
+  <text x="452" y="200" fill="#c9d1d9" font-size="10.5" font-family="'SFMono-Regular',Menlo,Consolas,monospace">*.request.http</text>
+  <text x="452" y="220" fill="#c9d1d9" font-size="10.5" font-family="'SFMono-Regular',Menlo,Consolas,monospace">*.response.http</text>
+  <text x="452" y="240" fill="#8b949e" font-size="10.5" font-family="'SFMono-Regular',Menlo,Consolas,monospace">archive/</text>
 
-  <!-- CENTER -> RIGHT arrow -->
-  <line x1="604" y1="200" x2="700" y2="200" stroke="#8b949e" stroke-width="2" marker-end="url(#arr)"/>
-  <text x="652" y="182" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="600">“check the burp inbox”</text>
-  <text x="652" y="218" text-anchor="middle" fill="#8b949e" font-size="10">read manifest → work →</text>
-  <text x="652" y="232" text-anchor="middle" fill="#8b949e" font-size="10">replay / analyze</text>
+  <rect x="440" y="282" width="168" height="24" rx="12" fill="#238636"/>
+  <text x="524" y="298" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">pending unread: 12</text>
 
-  <!-- RIGHT: agents -->
-  <rect x="708" y="88" width="184" height="234" rx="12" fill="#161b22" stroke="#30363d"/>
-  <text x="800" y="114" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">AI agents</text>
+  <!-- arrow 2 -->
+  <line x1="632" y1="224" x2="660" y2="224" stroke="#8b949e" stroke-width="2" marker-end="url(#arr)"/>
 
-  <rect x="724" y="130" width="152" height="44" rx="8" fill="#0d1117" stroke="#30363d"/>
-  <text x="800" y="149" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">OpenCode session</text>
-  <text x="800" y="166" text-anchor="middle" fill="#8b949e" font-size="10">“hunting IDOR + will report”</text>
+  <!-- ================= RIGHT: agents ================= -->
+  <rect x="672" y="104" width="224" height="240" rx="12" fill="#161b22" stroke="#30363d"/>
+  <text x="784" y="128" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">AI agents</text>
 
-  <rect x="724" y="186" width="152" height="44" rx="8" fill="#0d1117" stroke="#30363d"/>
-  <text x="800" y="205" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">Claude Code</text>
-  <text x="800" y="222" text-anchor="middle" fill="#8b949e" font-size="10">“reviews auth flow batch”</text>
+  <rect x="700" y="142" width="168" height="44" rx="8" fill="#0d1117" stroke="#30363d"/>
+  <text x="784" y="161" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">OpenCode session</text>
+  <text x="784" y="177" text-anchor="middle" fill="#8b949e" font-size="9.5">hunting IDOR, will report</text>
 
-  <rect x="724" y="242" width="152" height="44" rx="8" fill="#0d1117" stroke="#30363d" stroke-dasharray="5 4"/>
-  <text x="800" y="261" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">any model / script</text>
-  <text x="800" y="278" text-anchor="middle" fill="#8b949e" font-size="10">anything that reads files</text>
+  <rect x="700" y="196" width="168" height="44" rx="8" fill="#0d1117" stroke="#30363d"/>
+  <text x="784" y="215" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">Claude Code</text>
+  <text x="784" y="231" text-anchor="middle" fill="#8b949e" font-size="9.5">reviewing the auth batch</text>
+
+  <rect x="700" y="250" width="168" height="44" rx="8" fill="#0d1117" stroke="#30363d" stroke-dasharray="5 4"/>
+  <text x="784" y="269" text-anchor="middle" fill="#c9d1d9" font-size="11" font-weight="600">any model / script</text>
+  <text x="784" y="285" text-anchor="middle" fill="#8b949e" font-size="9.5">anything that reads files</text>
+
+  <text x="784" y="314" text-anchor="middle" fill="#8b949e" font-size="10">read -&gt; act -&gt; archive</text>
+
+  <!-- feedback loop -->
+  <path d="M 784 348 L 784 400 L 150 400 L 150 352" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arrGreen)"/>
+  <text x="467" y="416" text-anchor="middle" fill="#3fb950" font-size="10.5">
+    findings go to your chat · consumed items moved into archive/
+  </text>
 
   <!-- bottom strip -->
-  <rect x="28" y="420" width="864" height="40" rx="10" fill="#21262d"/>
-  <text x="460" y="444" text-anchor="middle" fill="#adbac7" font-size="12.5">
+  <rect x="24" y="440" width="872" height="40" rx="10" fill="#21262d"/>
+  <text x="460" y="464" text-anchor="middle" fill="#adbac7" font-size="12">
     No daemon · no network · nothing leaves the machine — every session, every model, one folder.
   </text>
 </svg>
