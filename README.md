@@ -1,200 +1,127 @@
-<div align="center">
-
 # burp-ai-bridge
 
-**Hand requests from Burp Suite to any AI agent on your machine —
-no MCP, no daemon, no copy-pasting blobs.**
+A Burp Suite extension that writes selected HTTP requests and their responses to a
+local folder on your machine. Any AI agent with filesystem access reads the folder,
+acts on the requests, and marks them consumed. No daemon, no listening port, no
+network egress beyond the requests themselves.
 
-*Select requests in Proxy history → your AI agent picks them up like a
-message on a desk. Works with every model, every session, every terminal.*
-
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-21-orange)](#build-from-source)
-[![Burp Suite Pro / CE](https://img.shields.io/badge/Burp%20Suite-Montoya%20API-orange)](#requirements)
-[![no network](https://img.shields.io/badge/TELEMETRY-none-blueviolet)](#privacy)
-[![platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-informational)](#requirements)
-
-</div>
-
----
-
-## The problem it solves
-
-You're three hours into a hunt. Burp's proxy history holds forty requests
-you already know are interesting. Your AI agent lives one window away,
-able to read files and run tools — but to hand it *that exact request
-with its exact response*, the only options are:
-
-- copy → paste → lose formatting → repeat forty times ❌
-- export the full history (200 MB of noise for 40 gems) ❌
-- build a bespoke integration and never get around to it ❌
-
-`burp-ai-bridge` makes it a single click: **right-click in any message
-viewer and "Send request to AI inbox"**, or select rows in the dedicated
-**AI Bridge** tab and hit Send. The requests — with their responses,
-metadata, and a note explaining *why* you sent them — drop into a
-local inbox folder that **any AI agent on the machine can read.**
-
-```
-you in chat:  "check the burp inbox"
-agent:        reads manifest → reads requests → tests them → reports back
-              → archives what it consumed
-```
-
-That's the whole protocol. No daemon to babysit, nothing phones home.
-
----
-
+[![build](https://github.com/afshinShh/burp-ai-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/afshinShh/burp-ai-bridge/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/afshinShh/burp-ai-bridge)](https://github.com/afshinShh/burp-ai-bridge/releases)
+[![license](https://img.shields.io/github/license/afshinShh/burp-ai-bridge)](LICENSE)
 
 ## How it works
 
-<table><tr><td>
+Selection happens in Burp (an "AI Bridge" tab listing proxy history, or a right-click
+menu item on any message viewer). Sending writes, per item:
 
-1. **Selecting** happens in Burp's UI, your way — multi-select rows in the
-   AI Bridge tab, or right-click any message viewer.
-2. **Sending** writes each item as a `.http` file plus one JSON-line of
-   metadata into `~/.ai-inbox/burp/` — that's the whole "integration".
-3. **Agents** (OpenCode, Claude Code, Codex, a plain grep, *anything that
-   can read files*) follow the tiny protocol in
-   [`docs/agent-protocol.md`](docs/agent-protocol.md):
-   read pending files → work → move them to `archive/`.
-   The Burp tab's *pending unread* counter drops when they do.
+- `<timestamp>_<seq>_<host>.request.http` — the raw request as Burp saw it
+- `<timestamp>_<seq>_<host>.response.http` — the response, unless disabled
+- one JSON line in `manifest.jsonl` — host, port, TLS flag, method, path, HTTP
+  version, status, and an optional note
 
-</td></tr></table>
-
-<p align="center">
-  <img src="docs/architecture.svg" alt="architecture: Burp Suite writes to ~/.ai-inbox/burp, any AI agent picks it up" width="760" />
-</p>
-
-Because the handoff point is ordinary files, **other sessions and other
-models share the same inbox** — hand the same batch to two models and
-compare their findings, or pick the hunt up tomorrow in a fresh session.
-
-
-## Quickstart
-
-**Load it**
-
-1. Download the jar from the [latest release](releases), or [build it](#build-from-source).
-2. Burp → **Extender → Extensions → Add** → type **Java** → select the jar.
-3. A new **AI Bridge** tab appears. Refresh history, select, send.
-
-**Use it**
-
-| Where | How |
-|---|---|
-| AI Bridge tab | *Refresh history* → ctrl/shift-select rows → **Send selected** |
-| Any message viewer | right-click → **Send request to AI inbox** |
-| Proxy history bottom pane | same right-click works there |
-| Note field | *why* this batch matters — agents read it before touching anything |
+Files land in `~/.ai-inbox/burp/` by default. Agents follow
+[docs/agent-protocol.md](docs/agent-protocol.md): read pending files, replay or
+analyze them, then move both files of a handled pair into `archive/`. The tab's
+pending counter (refreshed every 2 s) tracks `*.request.http` files at the root, so
+archiving drops it. Since the handoff is a plain directory, the same inbox is shared
+by any number of agent sessions and models.
 
 <p align="center">
-  <img src="docs/ai-bridge-tab.svg" alt="mock of the AI Bridge tab in Burp Suite with the pending unread counter" width="760" />
+  <img src="docs/architecture.svg" alt="Burp Suite writes to ~/.ai-inbox/burp; agents consume and archive" width="700" />
 </p>
 
-**Then, in your agent's chat:**
+## Install
 
-> Prompt: `check the burp inbox and hunt what's there`
+1. Grab `AiAgentBridge.jar` from the [latest release](https://github.com/afshinShh/burp-ai-bridge/releases), or [build from source](#build-from-source).
+2. Burp: `Extender → Extensions → Add`, type `Java`, select the jar.
+3. An `AI Bridge` tab appears in the main window.
 
-The inbox protocol is self-documenting: `~/.ai-inbox/burp/README.md`
-teaches any fresh agent session what to do, so it works across models
-and across weeks.
+## Usage
 
+- **AI Bridge tab:** `Refresh history`, ctrl/shift-select rows, fill `Note` if the
+  batch needs context, `Send selected`.
+- **Any message viewer:** right-click → `Send request to AI inbox`. With multiple
+  tabs or rows selected the menu offers the whole selection. Also works in the
+  proxy history bottom pane.
+- `Note` is stored per item in the manifest; agents read it first.
+- `Include response` (default on) controls whether `.response.http` files are written.
+- The inbox path can be changed in the tab footer; the override persists.
 
-## The language agents read
+On the agent side, ask in chat: `check the burp inbox and test what's there`.
+Agents pull on request — see [Notes](#notes).
+
+<p align="center">
+  <img src="docs/ai-bridge-tab.svg" alt="AI Bridge tab: toolbar, history table, pending counter" width="700" />
+</p>
+
+## Inbox format
+
+```
+~/.ai-inbox/burp/
+├── manifest.jsonl    append-only JSON lines describing every item
+├── *.request.http    pending items
+├── *.response.http   optional companion files
+├── archive/          consumed items, moved here by agents
+└── README.md         the protocol, self-contained for fresh agent sessions
+```
 
 One line per item in `manifest.jsonl`:
 
 ```json
-{"ts":"2026-10-18T02:58:41Z","id":9182,"file":"20261018-025841-431_1001_api.riotgames.com.request.http",
- "host":"api.riotgames.com","port":443,"tls":true,"method":"GET","path":"/lol/platform/v3/player",
- "httpVersion":"HTTP/1.1","proxyTime":"2026-10-18T02:57:58Z","status":200,
- "responseFile":"...-1001_api.riotgames.com.response.http","source":"proxy-history",
- "note":"authz on player id feels fragile, please test idor"}
+{"ts":"2026-01-01T12:00:00Z","id":9182,"file":"2026-01-01-120000-412_1001_api.example.com.request.http",
+ "host":"api.example.com","port":443,"tls":true,"method":"GET","path":"/api/v1/me/orders",
+ "httpVersion":"HTTP/1.1","proxyTime":"2026-01-01T11:59:58+00:00","status":200,
+ "responseFile":"2026-01-01-120000-412_1001_api.example.com.response.http","source":"proxy-history",
+ "note":"auth looks client-side only; test cross-account"}
 ```
 
-| field | agent uses it for |
+| field | used for |
 |---|---|
-| `host` / `port` / `tls` | aim replays (`send_http1_request`, `curl https://...`) |
-| `method` / `path` / `httpVersion` | choose the right attack & replay mode |
-| `file` / `responseFile` | full raw message bytes, untruncated |
-| `status` | spot the interesting ones fast |
-| `note` | what *you* suspected — highest-signal field |
-| `source` | `proxy-history` or `message-editor` (right-click sends) |
+| `host`, `port`, `tls` | replay target for `curl` or Burp MCP `send_http1_request` / `send_http2_request` |
+| `method`, `path`, `httpVersion` | replay mode; `HTTP/2` items are tagged explicitly |
+| `file`, `responseFile` | raw message bytes, never truncated |
+| `status` | shortlisting |
+| `note` | the sender's intent |
+| `source` | `proxy-history` or `message-editor` |
 
-Ready-made samples live in [`inbox-samples/`](inbox-samples/).
-
-
-## Who needs this
-
-<table>
-<tr><td align="center">🔍<br/><b>Hunters</b></td><td>Send an auth-flow batch mid-session and ask the agent to IDOR-hunt while you keep fuzzing.</td></tr>
-<tr><td align="center">🧪<br/><b>Pentesters</b></td><td>A "findings queue" a second analyst (machine or human) picks up without touching your mouse.</td></tr>
-<tr><td align="center">🤖<br/><b>Agent builders</b></td><td>A boring, universal ingest: one folder of `.http` files beats parsing 12 tools' formats.</td></tr>
-<tr><td align="center">👥<br/><b>Teams</b></td><td>Pull requests down the history and share a curated 40-request bundle, not 18 GB of log.</td></tr>
-</table>
-
-More (as stories, not specs): **[docs/use-cases.md](docs/use-cases.md)**.
-
-
-## Requirements
-
-- Burp Suite Pro or Community, 2023.10+ (any Montoya API build). Built and loaded on current releases.
-- JDK 21 only if you build from source (the release jar is ready to load).
-- An agent that can read files: OpenCode, Claude Code, Codex, Aider, ...
-
+Samples: [inbox-samples/](inbox-samples/). Agent contract:
+[docs/agent-protocol.md](docs/agent-protocol.md). Worked examples:
+[docs/use-cases.md](docs/use-cases.md).
 
 ## Build from source
 
-Linux / macOS:
+Requires JDK 17+. By default the build fetches the official Montoya API artifact
+from Maven Central and compiles locally:
 
-```bash
-./build.sh                       # downloads Burp CE API jar, compiles, writes AiAgentBridge.jar
-BURP_JAR=/path/to/burpsuite_pro.jar ./build.sh   # compile against your exact Burp
+```sh
+./build.sh                     # -> AiAgentBridge.jar
 ```
 
-Windows: `build.bat` (same behavior).
+To compile against an installed Burp build instead:
 
-CI: every push compiles from a clean checkout against a pinned Burp Community jar — [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+```sh
+BURP_JAR=/path/to/burpsuite_pro.jar ./build.sh
+```
 
+Windows: `build.bat` (equivalent). CI compiles every push against
+`net.portswigger.burp.extensions:montoya-api` and publishes the artifact:
+[.github/workflows/ci.yml](.github/workflows/ci.yml).
 
-## Privacy
+## Notes
 
-Everything stays on your machine. The extension writes to a local folder
-and does nothing else — no telemetry endpoints, no update pings. Your
-agent's own behavior is whatever you and your agent agree on.
-
-**Care with scope:** curate what you send. The inbox is convenient, so
-treat each click on Send like a deliberate commit of that request to
-your evidence trail.
-
-
-## FAQ
-
-**Does the agent get it mid-generation, instantly?**
-Agents pull, they can't be pushed. Say *"check the burp inbox"* (or run
-your hunt loop; the pending counter tells you files are waiting). The
-average latency here is one message — past that, remove one step:
-some agents can watch a directory themselves.
-
-**Why files instead of HTTP/queue/socket?**
-Files are the lowest common denominator on a machine: every language, every
-agent, every gimmick reads them. A server would work for exactly one agent —
-files work for all of them, plus outlive it.
-
-**HTTP/2?** HTTP/2 items are tagged `httpVersion: "HTTP/2"` in the manifest so
-agents can replay them correctly (e.g. `send_http2_request` via Burp MCP).
-
-**Multiple Burps?** Point each instance at its own folder via the *Inbox
-dir* override — it persists per extension install.
-
-
-## Contributing
-
-Issues and PRs welcome. The entire extension is one file
-(`src/aibridge/AiAgentBridge.java`) by design — it fits in an editor window
-and is meant to be *your* starting point for weirder things.
+- Agents pull; they are not pushed. The pending counter tells you files are
+  waiting; the trigger is one sentence in the agent's chat.
+- `manifest.jsonl` is append-only and is never rewritten; `archive/` is the
+  consumption cursor, which doubles as a hunt log.
+- Items from load and dir-change events also appear in the manifest, without a
+  `file` field.
+- Multiple Burp instances: point each at its own folder via the override.
+- Nothing leaves the machine. The extension only writes the inbox directory and
+  logs to Burp's extension output. Curate what you send — each send is a record
+  of a real request.
+- Requires Burp Suite Pro or Community with the Montoya API (2023.10 or newer).
+  Verified loaded on current releases.
 
 ## License
 
-[MIT](LICENSE) — © 2026 afshinShh, for the hunter community.
+[MIT](LICENSE). © 2026 afshinShh.
