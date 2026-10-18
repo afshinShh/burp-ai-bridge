@@ -44,4 +44,4 @@ jobs:
       # POSIX-touching behavior must no-op cleanly there, not crash
       - name: Build and run every test suite
         shell: pwsh
-        run: ./build.bat
+        run: ./build.ps1

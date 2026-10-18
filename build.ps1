@@ -3,7 +3,7 @@
 # Needs JDK 17+ on PATH.
 # Default: compiles against the Montoya API artifact from Maven Central.
 # To compile against your exact Burp build:
-#   $env:BURP_JAR="C:\Program Files\BurpSuitePro\burpsuite_pro.jar"; .\build.bat
+#   $env:BURP_JAR="C:\Program Files\BurpSuitePro\burpsuite_pro.jar"; .\build.ps1
 param(
     [string]$MontyaVersion = "2025.5",
     [string]$BurpJar = $env:BURP_JAR
@@ -26,10 +26,12 @@ if (-not $BurpJar) {
 
 Write-Host "[*] compiling against: $BurpJar"
 javac -cp $BurpJar -d build src\aibridge\AiAgentBridge.java
+if ($LASTEXITCODE -ne 0) { throw "extension compile failed" }
 jar cf AiAgentBridge.jar -C build aibridge
 
 New-Item -ItemType Directory -Force -Path build-test | Out-Null
 javac -cp "$BurpJar;build;build-test" -d build-test (Get-ChildItem test\aibridge\*.java).FullName
+if ($LASTEXITCODE -ne 0) { throw "test compile failed" }
 Get-ChildItem test\aibridge\*Test.java | ForEach-Object {
     java -Djava.awt.headless=true -cp "$BurpJar;build;build-test" "aibridge.$($_.BaseName)"
     if ($LASTEXITCODE -ne 0) { throw "test suite failed: $($_.BaseName)" }

@@ -144,7 +144,7 @@ To compile against an installed Burp build instead:
 BURP_JAR=/path/to/burpsuite_pro.jar ./build.sh
 ```
 
-Windows: `build.bat` (equivalent). CI compiles every push against
+Windows: `build.ps1` (PowerShell — run `powershell -ExecutionPolicy Bypass -File build.ps1`). CI compiles every push against
 `net.portswigger.burp.extensions:montoya-api` and publishes the artifact:
 [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
