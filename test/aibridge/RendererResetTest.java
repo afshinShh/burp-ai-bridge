@@ -38,6 +38,7 @@ public final class RendererResetTest {
         stageA_stockRenderer();
         stageB_leakyRenderer();
         stageC_selectionUntouched();
+        stageD_htmlParsingDisabled();
         System.out.println("checks=" + checks + " fails=" + fails);
         if (fails > 0) {
             System.out.println("FAIL");
@@ -180,5 +181,21 @@ public final class RendererResetTest {
         s.table.clearSelection();
         Component after = s.table.prepareRenderer(shared, 0, 3);
         eq(s.first, after.getBackground(), "C cleared selection shows batch color again");
+    }
+
+    /**
+     * Cell text comes from raw HTTP (paths, headers, note fields are attacker-
+     * influenced). Swing's default renderer parses values that begin with
+     * "<html" as HTML — a spoofing surface. The renderer must switch HTML
+     * parsing off on every component it hands back.
+     */
+    static void stageD_htmlParsingDisabled() {
+        Scene s = scene();
+        TableCellRenderer shared = s.table.getDefaultRenderer(Object.class);
+        for (int row = 0; row < 4; row++) {
+            Component c = s.table.prepareRenderer(shared, row, 4); // Path column
+            Object flag = ((JComponent) c).getClientProperty("html.disable");
+            eq(Boolean.TRUE, flag, "D row" + row + " html parsing disabled");
+        }
     }
 }

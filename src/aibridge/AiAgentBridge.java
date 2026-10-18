@@ -668,7 +668,7 @@ public final class AiAgentBridge implements BurpExtension {
 
     // ------------------------------------------------------------------ send
 
-    void send(List<Item> items, String note) {
+    String send(List<Item> items, String note) {
         ensureDirs();
         String now = LocalDateTime.now().format(FILE_TS);
         final long batch = batchSeq.getAndIncrement();
@@ -720,13 +720,33 @@ public final class AiAgentBridge implements BurpExtension {
         try {
             Toolkit.getDefaultToolkit().beep();
         } catch (Throwable ignored) { }
-        if (ui != null) {
-            ui.refresh();
-            ui.updatePending();
-            ui.setStatus("Sent " + ok + " item(s) to " + inboxDir
-                    + (fail > 0 ? " (" + fail + " failed)" : "")
-                    + " - now tell your agent: check the burp inbox");
-        }
+        return "Sent " + ok + " item(s) to " + inboxDir
+                + (fail > 0 ? " (" + fail + " failed)" : "")
+                + " - now tell your agent: check the burp inbox";
+    }
+
+    /**
+     * Off-EDT hand-off for all callers (tab button and context menu share it):
+     * heavy disk I/O runs in a worker thread, UI updates return via the EDT.
+     * BApp acceptance criterion 5 - responsiveness.
+     */
+    void sendAsync(List<Item> items, String note) {
+        new Thread(() -> {
+            String msg;
+            try {
+                msg = send(items, note);
+            } catch (Throwable t) {
+                msg = "Send failed: " + t;
+            }
+            final String m = msg;
+            SwingUtilities.invokeLater(() -> {
+                if (ui != null) {
+                    ui.setStatus(m);
+                    ui.updatePending();
+                    ui.refresh();
+                }
+            });
+        }, "ai-bridge-send").start();
     }
 
     private boolean includeResponse() {
@@ -1091,6 +1111,10 @@ public final class AiAgentBridge implements BurpExtension {
                 javax.swing.table.TableCellRenderer renderer, int row, int column) {
             Component c = super.prepareRenderer(renderer, row, column);
             try {
+                // cell text originates from raw HTTP; Swing parses "<html"-led
+                // values as rich text - switch that off on every handed-back
+                // component (spoofing surface, BApp untrusted-content criterion)
+                ((JComponent) c).putClientProperty("html.disable", Boolean.TRUE);
                 if (!isRowSelected(row)) {
                     int m = convertRowIndexToModel(row);
                     Color bg = bridge.colorFor(((HistoryModel) getModel()).at(m));
@@ -1293,9 +1317,9 @@ public final class AiAgentBridge implements BurpExtension {
                 int m = table.convertRowIndexToModel(v);
                 items.add(model.at(m));
             }
-            String n = note.getText().trim();
-            bridge.send(items, n);
+            final String n = note.getText().trim();
             note.setText("");
+            bridge.sendAsync(items, n);
         }
 
         void openInbox() {
@@ -1345,7 +1369,7 @@ public final class AiAgentBridge implements BurpExtension {
                     JMenuItem all = new JMenuItem("Send " + selected.size()
                             + " selected request(s) to AI inbox");
                     final List<HttpRequestResponse> sel = selected;
-                    all.addActionListener(e -> bridge.send(toItems(sel), "context-menu"));
+                    all.addActionListener(e -> bridge.sendAsync(toItems(sel), "context-menu"));
                     items.add(all);
                 }
                 if (me != null && me.isPresent() && me.get().requestResponse() != null) {
@@ -1354,7 +1378,7 @@ public final class AiAgentBridge implements BurpExtension {
                     one.addActionListener(e -> {
                         List<Item> single = new ArrayList<Item>();
                         single.add(bridge.itemFrom(hrr));
-                        bridge.send(single, "context-menu");
+                        bridge.sendAsync(single, "context-menu");
                     });
                     items.add(one);
                 }
