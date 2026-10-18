@@ -27,5 +27,10 @@ fi
 echo "[*] compiling against: $API_JAR"
 javac -cp "$API_JAR" -d build src/aibridge/AiAgentBridge.java
 jar cf AiAgentBridge.jar -C build aibridge
+
+mkdir -p build-test
+javac -cp "$API_JAR:build:build-test" -d build-test test/aibridge/StateTest.java
+java -cp "$API_JAR:build:build-test" aibridge.StateTest
+
 echo "[+] wrote $(pwd)/AiAgentBridge.jar"
 echo "    load it via: Burp -> Extender -> Extensions -> Add -> Java"

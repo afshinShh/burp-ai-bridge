@@ -45,6 +45,12 @@ by any number of agent sessions and models.
   proxy history bottom pane.
 - `Note` is stored per item in the manifest; agents read it first.
 - `Include response` (default on) controls whether `.response.http` files are written.
+- Sent rows are tracked by request hash: each send action is one batch — every row
+  from it gets the same highlight color (palette adapts to your Burp theme). The
+  note shows in the `Note` column. This survives a Burp restart.
+- `Hide sent` removes rows whose request already went to the box, so the list only
+  shows what you haven't handed off yet. `Forget sent` drops the memory when you
+  want to re-send previously handled rows (they still highlight/notes until you do).
 - The inbox path can be changed in the tab footer; the override persists.
 
 On the agent side, ask in chat: `check the burp inbox and test what's there`.

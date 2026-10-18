@@ -46,6 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class AiAgentBridge implements BurpExtension {
@@ -60,6 +62,51 @@ public final class AiAgentBridge implements BurpExtension {
     private volatile UiPanel ui;
     private Timer timer;
 
+    // --------------------------------------------------- sent-state tracking
+
+    /** One row that has been handed to the inbox, keyed by request-content hash. */
+    static final class SentRec {
+        final String hash;
+        final int colorIdx;
+        final long batch;
+        final String note;
+        SentRec(String hash, int colorIdx, long batch, String note) {
+            this.hash = hash;
+            this.colorIdx = colorIdx;
+            this.batch = batch;
+            this.note = note == null ? "" : note;
+        }
+    }
+
+    static final String STATE_KEY = "sentState-v1";
+    static final int STATE_CAP = 1500;
+    static final int NOTE_MAX = 160;
+
+    /** hash -> record, for filter lookups on EDT (refresh thread) and render. */
+    final ConcurrentHashMap<String, SentRec> sentIndex = new ConcurrentHashMap<String, SentRec>();
+    /** insertion order, oldest first; powers the cap trim. */
+    final List<SentRec> sentOrder = Collections.synchronizedList(new ArrayList<SentRec>());
+    /** incremented once per send action: items in one action share a batch/color. */
+    final AtomicLong batchSeq = new AtomicLong(1);
+    final AtomicInteger colorSeq = new AtomicInteger(0);
+
+    private static Color[] hexColors(String... hexes) {
+        Color[] out = new Color[hexes.length];
+        for (int i = 0; i < hexes.length; i++) out[i] = Color.decode(hexes[i]);
+        return out;
+    }
+
+    /** Hand-picked pastels that stay readable on the light Burp theme. */
+    static final Color[] PALETTE_LIGHT = hexColors(
+            "#FFF3BF", "#D7F0FA", "#DCF5DC", "#FFE4D6",
+            "#E8E0F7", "#FFE1E1", "#E6F0FF", "#F5F0DB");
+    /** Dark earthy tints for the dark Burp theme (white text stays legible). */
+    static final Color[] PALETTE_DARK = hexColors(
+            "#463B15", "#14424F", "#16401F", "#4A2418",
+            "#2C2450", "#4A1A24", "#1A2A50", "#3D3A19");
+
+    volatile Color[] batchPalette = PALETTE_LIGHT;
+
     // ------------------------------------------------------------------ init
 
     @Override
@@ -71,6 +118,8 @@ public final class AiAgentBridge implements BurpExtension {
         inboxDir = Paths.get(setting("inboxDir", home + File.separator + ".ai-inbox" + File.separator + "burp"));
         ensureDirs();
         writeProtocolDoc();
+        detectPalette();
+        loadSentState();
         logEvent("bridge_loaded", "AI Agent Bridge initialized. Inbox: " + inboxDir);
 
         try {
@@ -137,6 +186,182 @@ public final class AiAgentBridge implements BurpExtension {
         }
     }
 
+    // ------------------------------------------------------------ sent-state
+
+    /** Pick the highlight palette that fits the current Burp theme. */
+    void detectPalette() {
+        try {
+            Color bg = UIManager.getColor("Table.background");
+            boolean dark = false;
+            if (bg != null) {
+                double lum = 0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue();
+                dark = lum < 128;
+            }
+            batchPalette = dark ? PALETTE_DARK : PALETTE_LIGHT;
+        } catch (Throwable t) {
+            batchPalette = PALETTE_LIGHT;
+        }
+    }
+
+    /** SHA-1 of the raw request bytes; stable across restarts, cached on the item. */
+    String hashOf(Item it) {
+        if (it == null || it.req == null) return null;
+        if (it.hash != null) return it.hash;
+        try {
+            byte[] raw = it.req.toByteArray().getBytes();
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-1");
+            byte[] d = md.digest(raw);
+            StringBuilder b = new StringBuilder(40);
+            for (byte x : d) b.append(String.format("%02x", x));
+            it.hash = b.toString();
+        } catch (Throwable t) {
+            return null;
+        }
+        return it.hash;
+    }
+
+    /** Batch highlight color for a row, or null if it was never sent. */
+    Color colorFor(Item it) {
+        String h = hashOf(it);
+        if (h == null) return null;
+        SentRec r = sentIndex.get(h);
+        if (r == null) return null;
+        Color[] pal = batchPalette;
+        if (pal.length == 0) return null;
+        return pal[Math.floorMod(r.colorIdx, pal.length)];
+    }
+
+    String noteFor(Item it) {
+        String h = hashOf(it);
+        if (h == null) return "";
+        SentRec r = sentIndex.get(h);
+        return r == null ? "" : r.note;
+    }
+
+    /** Mark an item as handed off; called once per sent item inside send(). */
+    void tagSent(Item it, int colorIdx, long batch, String note) {
+        String h = hashOf(it);
+        if (h == null) return;
+        SentRec r = new SentRec(h, colorIdx, batch, compactNoteStatic(note));
+        sentIndex.put(h, r);
+        sentOrder.add(r);
+        persistSentState();
+    }
+
+    void loadSentState() {
+        String blob = null;
+        try {
+            blob = api.persistence().extensionData().getString(STATE_KEY);
+        } catch (Throwable ignored) { }
+        List<String[]> es = decodeSentState(blob);
+        synchronized (sentOrder) {
+            for (String[] e : es) {
+                SentRec r = recFrom(e);
+                if (r != null) {
+                    sentOrder.add(r);
+                    sentIndex.put(r.hash, r);
+                }
+            }
+        }
+        if (!es.isEmpty()) {
+            api.logging().logToOutput("AI Bridge: restored " + es.size() + " sent-state entries");
+        }
+    }
+
+    static SentRec recFrom(String[] e) {
+        try {
+            return new SentRec(e[0], Integer.parseInt(e[1]), Long.parseLong(e[2]), compactNoteStatic(e[3]));
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    void persistSentState() {
+        List<String[]> snap;
+        synchronized (sentOrder) {
+            snap = new ArrayList<String[]>(sentOrder.size());
+            for (SentRec r : sentOrder) {
+                snap.add(new String[]{r.hash, String.valueOf(r.colorIdx),
+                        String.valueOf(r.batch), r.note});
+            }
+        }
+        List<String[]> capped = capEntries(snap, STATE_CAP);
+        try {
+            api.persistence().extensionData().setString(STATE_KEY, encodeSentState(capped));
+        } catch (Throwable t) {
+            api.logging().logToError("persist sent-state failed: " + t);
+            return;
+        }
+        if (capped.size() < snap.size()) {
+            synchronized (sentOrder) {
+                sentOrder.clear();
+                sentIndex.clear();
+                for (String[] e : capped) {
+                    SentRec r = recFrom(e);
+                    if (r != null) {
+                        sentOrder.add(r);
+                        sentIndex.put(r.hash, r);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Clear everything: colors, notes and the hide-sent filter history. */
+    void forgetSent() {
+        synchronized (sentOrder) {
+            sentOrder.clear();
+            sentIndex.clear();
+        }
+        try {
+            api.persistence().extensionData().setString(STATE_KEY, "");
+        } catch (Throwable ignored) { }
+        logEvent("sent_state_cleared", "sent-state cleared from tab");
+        if (ui != null) {
+            ui.refresh();
+            ui.setStatus("Sent-state cleared - previously sent rows are untagged again.");
+        }
+    }
+
+    // ------------------------------------------------------------ sent-state codec
+
+    static String compactNoteStatic(String note) {
+        if (note == null) return "";
+        String clean = note.replaceAll("\\s+", " ").trim();
+        return clean.length() > NOTE_MAX ? clean.substring(0, NOTE_MAX) : clean;
+    }
+
+    /**
+     * Tab-separated lines: hash \t colorIdx \t batch \t compacted-note \n.
+     * Compact so it survives Burp's extensionData round trips without escaping.
+     */
+    static String encodeSentState(List<String[]> entries) {
+        StringBuilder sb = new StringBuilder();
+        for (String[] e : entries) {
+            sb.append(e[0]).append('\t').append(e[1]).append('\t').append(e[2])
+              .append('\t').append(compactNoteStatic(e[3])).append('\n');
+        }
+        return sb.toString();
+    }
+
+    static List<String[]> decodeSentState(String blob) {
+        List<String[]> out = new ArrayList<String[]>();
+        if (blob == null || blob.trim().isEmpty()) return out;
+        for (String line : blob.split("\n", -1)) {
+            if (line.trim().isEmpty()) continue;
+            String[] parts = line.split("\t", -1);
+            if (parts.length < 4) continue;
+            out.add(new String[]{parts[0], parts[1], parts[2], compactNoteStatic(parts[3])});
+        }
+        return out;
+    }
+
+    static List<String[]> capEntries(List<String[]> in, int max) {
+        if (max <= 0) return new ArrayList<String[]>();
+        if (in.size() <= max) return in;
+        return new ArrayList<String[]>(in.subList(in.size() - max, in.size()));
+    }
+
     // ------------------------------------------------------------ protocol doc
 
     private void writeProtocolDoc() {
@@ -184,6 +409,8 @@ public final class AiAgentBridge implements BurpExtension {
     void send(List<Item> items, String note) {
         ensureDirs();
         String now = LocalDateTime.now().format(FILE_TS);
+        final long batch = batchSeq.getAndIncrement();
+        final int colorIdx = colorSeq.getAndIncrement();
         List<String> lines = new ArrayList<String>();
         int ok = 0, fail = 0;
         for (Item it : items) {
@@ -217,8 +444,10 @@ public final class AiAgentBridge implements BurpExtension {
                 m.put("status", respStatus);
                 m.put("source", it.source);
                 if (note != null && !note.trim().isEmpty()) m.put("note", note.trim());
+                m.put("batch", batch);
 
                 lines.add(toJson(m));
+                tagSent(it, colorIdx, batch, note);
                 ok++;
             } catch (Throwable t) {
                 api.logging().logToError("send failed: " + t);
@@ -230,6 +459,7 @@ public final class AiAgentBridge implements BurpExtension {
             Toolkit.getDefaultToolkit().beep();
         } catch (Throwable ignored) { }
         if (ui != null) {
+            ui.refresh();
             ui.updatePending();
             ui.setStatus("Sent " + ok + " item(s) to " + inboxDir
                     + (fail > 0 ? " (" + fail + " failed)" : "")
@@ -393,11 +623,16 @@ public final class AiAgentBridge implements BurpExtension {
         HttpResponse resp;
         HttpService svc;
         String source = "proxy-history";
+        /** lazy SHA-1 of the request bytes; caches the hashOf() result. */
+        volatile String hash;
     }
 
     static final class HistoryModel extends AbstractTableModel {
         final List<Item> rows = new ArrayList<Item>();
-        private final String[] cols = {"ID", "Time", "Method", "Host", "Path", "Status", "Len"};
+        private final String[] cols = {"ID", "Time", "Method", "Host", "Path", "Status", "Len", "Note"};
+        private final AiAgentBridge bridge;
+
+        HistoryModel(AiAgentBridge bridge) { this.bridge = bridge; }
 
         void set(List<Item> items) {
             synchronized (rows) {
@@ -437,6 +672,7 @@ public final class AiAgentBridge implements BurpExtension {
                         return len;
                     } catch (Throwable t) { return 0; }
                 }
+                case 7: return bridge.noteFor(it);
                 default: return "";
             }
         }
@@ -450,16 +686,41 @@ public final class AiAgentBridge implements BurpExtension {
         }
     }
 
+    /** JTable that paints the batch color of sent rows without touching selection. */
+    static final class BridgeTable extends JTable {
+        final AiAgentBridge bridge;
+
+        BridgeTable(HistoryModel model, AiAgentBridge bridge) {
+            super(model);
+            this.bridge = bridge;
+        }
+
+        @Override public Component prepareRenderer(
+                javax.swing.table.TableCellRenderer renderer, int row, int column) {
+            Component c = super.prepareRenderer(renderer, row, column);
+            try {
+                if (!isRowSelected(row)) {
+                    int m = convertRowIndexToModel(row);
+                    Color bg = bridge.colorFor(((HistoryModel) getModel()).at(m));
+                    if (bg != null) c.setBackground(bg);
+                }
+            } catch (Throwable ignored) { }
+            return c;
+        }
+    }
+
     // -------------------------------------------------------------------- UI
 
     static final class UiPanel {
         final JPanel root = new JPanel(new BorderLayout(6, 6));
-        final HistoryModel model = new HistoryModel();
-        final JTable table = new JTable(model);
+        final HistoryModel model;
+        final BridgeTable table;
         final JTextField filter = new JTextField(20);
         final JTextField maxRows = new JTextField("3000", 6);
         final JTextField note = new JTextField(18);
         final JCheckBox includeResp = new JCheckBox("Include response", true);
+        final JCheckBox hideSent = new JCheckBox("Hide sent");
+        final JButton forgetSentBtn = new JButton("Forget sent");
         final JLabel status = new JLabel("Select rows and click Send.");
         final JLabel pending = new JLabel("Pending unread: 0");
         final JTextField pathField;
@@ -467,6 +728,8 @@ public final class AiAgentBridge implements BurpExtension {
 
         UiPanel(AiAgentBridge bridge) {
             this.bridge = bridge;
+            model = new HistoryModel(bridge);
+            table = new BridgeTable(model, bridge);
             pathField = new JTextField(bridge.inbox().toString());
 
             JToolBar bar = new JToolBar();
@@ -487,6 +750,11 @@ public final class AiAgentBridge implements BurpExtension {
             bar.add(new JLabel("Max rows:"));
             bar.add(maxRows);
             bar.add(includeResp);
+            bar.add(hideSent);
+            forgetSentBtn.setToolTipText(
+                    "Drop colors/notes/the sent-memory so previously sent rows can be sent again");
+            forgetSentBtn.addActionListener(e -> bridge.forgetSent());
+            bar.add(forgetSentBtn);
             bar.addSeparator();
             bar.add(new JLabel("Note:"));
             bar.add(note);
@@ -528,8 +796,10 @@ public final class AiAgentBridge implements BurpExtension {
             table.getColumnModel().getColumn(4).setPreferredWidth(420);
             table.getColumnModel().getColumn(5).setPreferredWidth(60);
             table.getColumnModel().getColumn(6).setPreferredWidth(80);
+            table.getColumnModel().getColumn(7).setPreferredWidth(160);
 
             filter.addActionListener(e -> refresh());
+            hideSent.addActionListener(e -> refresh());
         }
 
         void refresh() {
@@ -542,7 +812,9 @@ public final class AiAgentBridge implements BurpExtension {
             new Thread(new Runnable() {
                 @Override public void run() {
                     List<Item> out = new ArrayList<Item>();
+                    final int[] hidden = {0};
                     int total = 0;
+                    boolean hide = hideSent.isSelected();
                     try {
                         List<ProxyHttpRequestResponse> hist = b.api.proxy().history();
                         total = hist.size();
@@ -553,7 +825,15 @@ public final class AiAgentBridge implements BurpExtension {
                                 Item it = b.itemFrom(h);
                                 String hay = safeText(b.hostOf(it)) + " " + safeText(b.safePath(it))
                                         + " " + safeText(b.safeMethod(it));
-                                if (f.isEmpty() || hay.toLowerCase().contains(f)) out.add(it);
+                                if (!f.isEmpty() && !hay.toLowerCase().contains(f)) continue;
+                                if (hide) {
+                                    String h2 = b.hashOf(it);
+                                    if (h2 != null && b.sentIndex.containsKey(h2)) {
+                                        hidden[0]++;
+                                        continue;
+                                    }
+                                }
+                                out.add(it);
                             } catch (Throwable ignored) { }
                         }
                     } catch (Throwable t) {
@@ -561,10 +841,14 @@ public final class AiAgentBridge implements BurpExtension {
                     }
                     final List<Item> res = out;
                     final int tot = total;
+                    final int hid = hidden[0];
                     SwingUtilities.invokeLater(new Runnable() {
                         @Override public void run() {
                             model.set(res);
-                            setStatus("Loaded " + res.size() + " entry/entries (of " + tot + " in history). Newest first.");
+                            setStatus("Loaded " + res.size() + " entry/entries (of " + tot
+                                    + " in history"
+                                    + (hid > 0 ? ", " + hid + " already sent hidden" : "")
+                                    + "). Newest first.");
                             updatePending();
                         }
                     });
