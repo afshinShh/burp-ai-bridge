@@ -1,0 +1,5 @@
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 214
+
+{"orders":[{"id":88412,"status":"pending","total":129.00,"currency":"URD","userId":5421,"createdAt":"2026-01-01T11:59:02Z"},{"id":88390,"status":"shipped","total":54.20,"currency":"URD","userId":5421,"createdAt":"2025-12-28T18:20:11Z"}]}

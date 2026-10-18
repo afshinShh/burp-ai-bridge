@@ -1,0 +1,31 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile against the official Montoya API
+        run: ./build.sh
+
+      - name: Smoke-test the jar shape
+        run: |
+          jar tf AiAgentBridge.jar | grep -q aibridge/AiAgentBridge.class
+          echo "extension class present"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AiAgentBridge
+          path: AiAgentBridge.jar
