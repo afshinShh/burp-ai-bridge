@@ -50,6 +50,29 @@ by any number of agent sessions and models.
 On the agent side, ask in chat: `check the burp inbox and test what's there`.
 Agents pull on request — see [Notes](#notes).
 
+### Announce the path (once per machine)
+
+Agents only read what their harness injects, so tell them where the inbox is once.
+Append to the global instruction file of the agents you use:
+
+```sh
+cat >> ~/.config/opencode/AGENTS.md <<'EOF'
+## burp inbox — AI Agent Bridge
+- The Burp "AI Agent Bridge" extension sends selected requests to ~/.ai-inbox/burp/.
+- Triggers: "check the burp inbox" / "hunt what's in the burp inbox".
+- When triggered: read ~/.ai-inbox/burp/README.md (protocol), then manifest.jsonl (newest last).
+  Pending = *.request.http at the root; responseFile references the captured responses.
+- Read note first (sender intent). Act: analyze, replay (Burp MCP send_http1_request /
+  send_http2_request using host/port/tls, or curl), report back in chat.
+- Move BOTH files of each handled pair into ~/.ai-inbox/burp/archive/; never edit manifest.jsonl.
+  Lines without a file field are lifecycle events; ignore them.
+EOF
+```
+
+Equivalent locations: `~/.claude/CLAUDE.md` (Claude Code), project-root `AGENTS.md`
+(scoped per workspace). OpenCode: without a project `AGENTS.md`, the global file above
+is what every session sees.
+
 <p align="center">
   <img src="docs/ai-bridge-tab.svg" alt="AI Bridge tab: toolbar, history table, pending counter" width="700" />
 </p>
