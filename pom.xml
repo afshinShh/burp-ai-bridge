@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AI Agent Bridge — a Burp Suite extension that hands selected requests to
+  local AI agents through a folder on disk. Plain-javac users: see
+  build.sh / build.ps1. Maven users and the BApp Store build pipeline:
+  `mvn package` produces AiAgentBridge.jar and runs every headless test
+  suite during the test phase.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.afshinshh</groupId>
+  <artifactId>ai-agent-bridge</artifactId>
+  <version>1.2.0</version>
+  <packaging>jar</packaging>
+  <name>AI Agent Bridge</name>
+  <description>Bridges Burp Suite and local AI coding agents through a folder on disk - no server, no network.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+  </properties>
+
+  <dependencies>
+    <!-- Burp ships the API; it must never be bundled -->
+    <dependency>
+      <groupId>net.portswigger.burp.extensions</groupId>
+      <artifactId>montoya-api</artifactId>
+      <version>2025.5</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>AiAgentBridge</finalName>
+    <sourceDirectory>${project.basedir}/src</sourceDirectory>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+
+      <!--
+        The test suites are plain Java mains (deliberately dependency-free so
+        build.sh can run them too). Ant-run compiles and executes each one in
+        a forked JVM with failonerror, so a failing assert fails the build.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>run-test-suites</id>
+            <phase>test</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.directory}/build-mvn-test"/>
+                <javac destdir="${project.build.directory}/build-mvn-test"
+                       includeantruntime="false"
+                       failonerror="true">
+                  <src path="test"/>
+                  <classpath>
+                    <path refid="maven.compile.classpath"/>
+                    <pathelement location="${project.build.directory}/classes"/>
+                  </classpath>
+                </javac>
+                <macrodef name="run-suite">
+                  <attribute name="name"/>
+                  <sequential>
+                    <java fork="true" failonerror="true" classname="aibridge.@{name}">
+                      <classpath>
+                        <path refid="maven.compile.classpath"/>
+                        <pathelement location="${project.build.directory}/classes"/>
+                        <pathelement location="${project.build.directory}/build-mvn-test"/>
+                      </classpath>
+                      <sysproperty key="java.awt.headless" value="true"/>
+                    </java>
+                  </sequential>
+                </macrodef>
+                <run-suite name="StateTest"/>
+                <run-suite name="RendererResetTest"/>
+                <run-suite name="UrlForTest"/>
+                <run-suite name="ArchiveScanTest"/>
+                <run-suite name="ResultsStreamTest"/>
+                <run-suite name="RotationTest"/>
+                <run-suite name="PersistOptionsTest"/>
+                <run-suite name="PosixPermTest"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

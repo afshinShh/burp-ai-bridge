@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="maven-antrun-" default="main">
+  <target name="main">
+    <mkdir dir="/home/omp/Desktop/RED/BugBounty/tools/burp-ai-bridge/target/build-mvn-test" />
+    <javac includeantruntime="false" destdir="/home/omp/Desktop/RED/BugBounty/tools/burp-ai-bridge/target/build-mvn-test" failonerror="true">
+      <src path="test" />
+      <classpath>
+        <path refid="maven.compile.classpath" />
+        <pathelement location="/home/omp/Desktop/RED/BugBounty/tools/burp-ai-bridge/target/classes" />
+      </classpath>
+    </javac>
+    <macrodef name="run-suite">
+      <attribute name="name" />
+      <sequential>
+        <java fork="true" classname="aibridge.@{name}" failonerror="true">
+          <classpath>
+            <path refid="maven.compile.classpath" />
+            <pathelement location="/home/omp/Desktop/RED/BugBounty/tools/burp-ai-bridge/target/classes" />
+            <pathelement location="/home/omp/Desktop/RED/BugBounty/tools/burp-ai-bridge/target/build-mvn-test" />
+          </classpath>
+          <sysproperty value="true" key="java.awt.headless" />
+        </java>
+      </sequential>
+    </macrodef>
+    <run-suite name="StateTest" />
+    <run-suite name="RendererResetTest" />
+    <run-suite name="UrlForTest" />
+    <run-suite name="ArchiveScanTest" />
+    <run-suite name="ResultsStreamTest" />
+    <run-suite name="RotationTest" />
+    <run-suite name="PersistOptionsTest" />
+    <run-suite name="PosixPermTest" />
+  </target>
+</project>

@@ -138,6 +138,12 @@ from Maven Central and compiles locally:
 ./build.sh                     # -> AiAgentBridge.jar
 ```
 
+or with Maven (what the BApp Store build pipeline uses):
+
+```sh
+mvn clean package              # -> target/AiAgentBridge.jar, runs all suites
+```
+
 To compile against an installed Burp build instead:
 
 ```sh

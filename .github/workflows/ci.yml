@@ -20,6 +20,9 @@ jobs:
       - name: Compile against the official Montoya API
         run: ./build.sh
 
+      - name: Maven build (BApp Store pipeline path)
+        run: mvn -B clean package
+
       - name: Smoke-test the jar shape
         run: |
           jar tf AiAgentBridge.jar | grep -q aibridge/AiAgentBridge.class
