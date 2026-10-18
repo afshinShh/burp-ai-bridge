@@ -58,7 +58,7 @@ public final class AiAgentBridge implements BurpExtension {
     static final AtomicLong SEQ = new AtomicLong(1000);
 
     private MontoyaApi api;
-    private Path inboxDir;
+    Path inboxDir; // package-visible: headless tests wire a temp directory in
     private volatile UiPanel ui;
     private Timer timer;
 
@@ -89,6 +89,8 @@ public final class AiAgentBridge implements BurpExtension {
     final ConcurrentHashMap<String, SentRec> sentIndex = new ConcurrentHashMap<String, SentRec>();
     /** insertion order, oldest first; powers the cap trim. */
     final List<SentRec> sentOrder = Collections.synchronizedList(new ArrayList<SentRec>());
+    /** base names (no extension) whose request file now lives in archive/ — consumed. */
+    final ConcurrentHashMap<String, Boolean> archived = new ConcurrentHashMap<String, Boolean>();
     /** incremented once per send action: items in one action share a batch/color. */
     final AtomicLong batchSeq = new AtomicLong(1);
     final AtomicInteger colorSeq = new AtomicInteger(0);
@@ -109,6 +111,141 @@ public final class AiAgentBridge implements BurpExtension {
             "#2C2450", "#4A1A24", "#1A2A50", "#3D3A19");
 
     volatile Color[] batchPalette = PALETTE_LIGHT;
+    /** batch -> agent summary from results.jsonl; bounded, access-ordered LRU. */
+    final Map<Long, String> agentReplies = new LinkedHashMap<Long, String>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<Long, String> eldest) {
+            return size() > RESULTS_CAP;
+        }
+    };
+
+    // -------------------------------------------------------------- agent replies
+
+    static final String RESULTS_FILE = "results.jsonl";
+    static final int RESULTS_CAP = 50;
+    /** byte offset (parse position) of the last fully-considered results content */
+    volatile long resultsOffset = 0;
+    /** byte index just after the last COMPLETE newline parsed — anchor for replacement detection */
+    volatile long resultsAnchorPos = 0;
+    /** the up-to-16 bytes just before that anchor; changed bytes mean the file was replaced */
+    volatile byte[] resultsAnchorBytes = new byte[0];
+
+    /**
+     * Agents append JSON lines {ts, batch, summary, by} to results.jsonl; this
+     * tails them. Torn or malformed lines are skipped without crashing. If the
+     * historical bytes no longer match the anchor region, the file was replaced
+     * or truncated: reset the watermark and drop stale batch summaries.
+     */
+    boolean readResults() {
+        Path f = inboxDir.resolve(RESULTS_FILE);
+        byte[] tail;
+        try {
+            tail = Files.readAllBytes(f);
+        } catch (Throwable t) {
+            return false; // no file yet: leave watermark, wait for creation
+        }
+        long off = resultsOffset;
+        boolean replaced = false;
+        if (off > tail.length || resultsAnchorPos > tail.length) {
+            replaced = true; // file shrank under us
+        } else if (off > 0 && resultsAnchorBytes.length > 0) {
+            byte[] probe = new byte[resultsAnchorBytes.length];
+            int a = (int) Math.max(0, resultsAnchorPos - probe.length);
+            System.arraycopy(tail, a, probe, 0, probe.length);
+            replaced = !java.util.Arrays.equals(probe, resultsAnchorBytes);
+        }
+        if (replaced) {
+            synchronized (agentReplies) {
+                agentReplies.clear();
+            }
+            off = 0;
+            resultsAnchorPos = 0;
+            resultsAnchorBytes = new byte[0];
+        }
+
+        int searchFrom = (int) Math.min(off, (long) Integer.MAX_VALUE);
+        long anchor = resultsAnchorPos;
+        int consumed = searchFrom;
+        Map<Long, String> additions = new LinkedHashMap<Long, String>();
+        for (int i = searchFrom; i <= tail.length; ) {
+            int nl = indexOfNewline(tail, i);
+            int end = nl < 0 ? tail.length : nl;
+            String line = new String(tail, i, end - i, StandardCharsets.UTF_8).trim();
+            if (nl < 0) {
+                if (!line.isEmpty()) {
+                    consumed = i; // incomplete tail line: retry from here next tick
+                } else {
+                    consumed = tail.length;
+                    anchor = tail.length;
+                }
+                break;
+            }
+            Long b = extractBatchNumber(line);
+            if (b != null) {
+                String sum = compactNoteStatic(extractField(line, "summary"));
+                if (!sum.isEmpty()) additions.put(b, sum);
+            }
+            consumed = end + 1;
+            anchor = end + 1;
+            i = nl + 1;
+        }
+        if (!additions.isEmpty()) {
+            synchronized (agentReplies) {
+                for (Map.Entry<Long, String> e : additions.entrySet()) {
+                    agentReplies.put(e.getKey(), e.getValue());
+                }
+            }
+        }
+        resultsOffset = (long) consumed;
+        if (anchor > 0) {
+            int len = (int) Math.min(16L, anchor);
+            byte[] region = new byte[len];
+            System.arraycopy(tail, (int) (anchor - len), region, 0, len);
+            resultsAnchorPos = anchor;
+            resultsAnchorBytes = region;
+        }
+        return !additions.isEmpty();
+    }
+
+    private static int indexOfNewline(byte[] b, int from) {
+        for (int i = from; i < b.length; i++) {
+            if (b[i] == '\n') return i;
+        }
+        return -1;
+    }
+
+    /** numeric batch: e.g. "batch":911 parses as 911; absent/invalid -> null */
+    static Long extractBatchNumber(String line) {
+        try {
+            int at = line.indexOf("\"batch\"");
+            if (at < 0) return null;
+            int colon = line.indexOf(':', at + 7);
+            if (colon < 0) return null;
+            int s = colon + 1;
+            while (s < line.length() && line.charAt(s) == ' ') s++;
+            int e = s;
+            while (e < line.length() && (Character.isDigit(line.charAt(e)) || line.charAt(e) == '-')) e++;
+            if (e == s) return null;
+            return Long.parseLong(line.substring(s, e));
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** values are plain, agent-controlled strings; extractor tolerates escapes minimally */
+    private static String extractField(String line, String key) {
+        try {
+            int at = line.indexOf("\"" + key + "\"");
+            if (at < 0) return null;
+            int colon = line.indexOf(':', at + key.length() + 2);
+            if (colon < 0) return null;
+            int q1 = line.indexOf('"', colon + 1);
+            if (q1 < 0) return null; // numeric field
+            int q2 = line.indexOf('"', q1 + 1);
+            return line.substring(q1 + 1, q2 < 0 ? line.length() : q2);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
 
     // ------------------------------------------------------------------ init
 
@@ -136,7 +273,12 @@ public final class AiAgentBridge implements BurpExtension {
         SwingUtilities.invokeLater(new Runnable() {
             @Override public void run() {
                 api.userInterface().registerSuiteTab(TAB_NAME, panel.root);
-                timer = new Timer(2000, e -> panel.updatePending());
+                timer = new Timer(2000, e -> {
+                    boolean consumed = refreshArchived();
+                    boolean replied = readResults();
+                    panel.updatePending();
+                    if (consumed || replied) panel.repaintRows();
+                });
                 timer.start();
                 panel.refresh();
             }
@@ -319,6 +461,7 @@ public final class AiAgentBridge implements BurpExtension {
             sentOrder.clear();
             sentIndex.clear();
         }
+        archived.clear();
         try {
             api.persistence().extensionData().setString(STATE_KEY, "");
         } catch (Throwable ignored) { }
@@ -327,6 +470,62 @@ public final class AiAgentBridge implements BurpExtension {
             ui.refresh();
             ui.setStatus("Sent-state cleared - previously sent rows are untagged again.");
         }
+    }
+
+    // -------------------------------------------------------------- consumption
+
+    /**
+     * One directory listing of archive/ per tick: every base name present there
+     * as *.request.http was consumed by an agent. Cheap regardless of history
+     * size; the timer repaints only when the set changed.
+     */
+    boolean refreshArchived() {
+        ConcurrentHashMap<String, Boolean> next = new ConcurrentHashMap<String, Boolean>();
+        try (DirectoryStream<Path> ds =
+                     Files.newDirectoryStream(inboxDir.resolve("archive"), "*.request.http")) {
+            for (Path p : ds) {
+                String name = p.getFileName().toString();
+                next.put(name.substring(0, name.length() - ".request.http".length()), Boolean.TRUE);
+            }
+        } catch (Throwable ignored) { }
+        boolean changed = next.size() != archived.size();
+        if (!changed) {
+            for (String k : next.keySet()) {
+                if (!archived.containsKey(k)) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        archived.clear();
+        archived.putAll(next);
+        return changed;
+    }
+
+    boolean isConsumed(String base) {
+        return base != null && !base.isEmpty() && archived.containsKey(base);
+    }
+
+    /**
+     * Agent-loop text for the Agent column: what happened after the hand-off.
+     * "sent" while pending, "✓" once consumed, and rich when the agent replied:
+     * "✓ <summary>" (summary implies reply; ✓ prefix communicates consumption).
+     */
+    String agentStateFor(Item it) {
+        String h = hashOf(it);
+        if (h == null) return "";
+        SentRec r = sentIndex.get(h);
+        if (r == null) return "";
+        boolean consumed = !r.file.isEmpty() && isConsumed(r.file);
+        String reply;
+        synchronized (agentReplies) {
+            reply = agentReplies.get(r.batch);
+        }
+        if (reply != null && !reply.isEmpty()) {
+            return (consumed ? "✓ " : "") + reply;
+        }
+        if (consumed) return "✓";
+        return "sent";
     }
 
     // ------------------------------------------------------------ sent-state codec
@@ -676,7 +875,7 @@ public final class AiAgentBridge implements BurpExtension {
 
     static final class HistoryModel extends AbstractTableModel {
         final List<Item> rows = new ArrayList<Item>();
-        private final String[] cols = {"ID", "Time", "Method", "Host", "Path", "Status", "Len", "Note"};
+        private final String[] cols = {"ID", "Time", "Method", "Host", "Path", "Status", "Len", "Note", "Agent"};
         private final AiAgentBridge bridge;
 
         HistoryModel(AiAgentBridge bridge) { this.bridge = bridge; }
@@ -720,6 +919,7 @@ public final class AiAgentBridge implements BurpExtension {
                     } catch (Throwable t) { return 0; }
                 }
                 case 7: return bridge.noteFor(it);
+                case 8: return bridge.agentStateFor(it);
                 default: return "";
             }
         }
@@ -849,6 +1049,7 @@ public final class AiAgentBridge implements BurpExtension {
             table.getColumnModel().getColumn(5).setPreferredWidth(60);
             table.getColumnModel().getColumn(6).setPreferredWidth(80);
             table.getColumnModel().getColumn(7).setPreferredWidth(160);
+            table.getColumnModel().getColumn(8).setPreferredWidth(150);
 
             filter.addActionListener(e -> refresh());
             hideSent.addActionListener(e -> refresh());
@@ -952,6 +1153,11 @@ public final class AiAgentBridge implements BurpExtension {
 
         void updatePending() {
             pending.setText("Pending unread: " + bridge.pendingCount());
+        }
+
+        /** repaint (not re-model): value/backgrounds are live lookups per cell */
+        void repaintRows() {
+            table.repaint();
         }
 
         void setStatus(String s) { status.setText(" " + s); }
