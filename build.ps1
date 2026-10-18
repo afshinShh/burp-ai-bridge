@@ -33,7 +33,7 @@ New-Item -ItemType Directory -Force -Path build-test | Out-Null
 javac -cp "$BurpJar;build;build-test" -d build-test (Get-ChildItem test\aibridge\*.java).FullName
 if ($LASTEXITCODE -ne 0) { throw "test compile failed" }
 Get-ChildItem test\aibridge\*Test.java | ForEach-Object {
-    java -Djava.awt.headless=true -cp "$BurpJar;build;build-test" "aibridge.$($_.BaseName)"
+    java "-Djava.awt.headless=true" -cp "$BurpJar;build;build-test" "aibridge.$($_.BaseName)"
     if ($LASTEXITCODE -ne 0) { throw "test suite failed: $($_.BaseName)" }
 }
 
